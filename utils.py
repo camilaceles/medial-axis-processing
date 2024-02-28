@@ -1,3 +1,4 @@
+import trimesh
 from pygel3d import hmesh
 import numpy as np
 
@@ -52,3 +53,9 @@ def poisson_disk_sampling_on_mesh(m, n):
                 break
 
     return sampled_points, normals
+
+
+def manifold_to_trimesh(m: hmesh.Manifold)-> trimesh.Trimesh:
+    faces = np.array([m.circulate_face(fid) for fid in m.faces()])
+    trim = trimesh.Trimesh(vertices=m.positions(), faces=faces)
+    return trim
