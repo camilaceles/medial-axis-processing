@@ -4,6 +4,8 @@ from pygel3d import hmesh, graph, jupyter_display
 from numpy import array
 import numpy as np
 
+from medial_axis_formation.medial_axis_backup import MedialAxis
+
 camera = dict(
     up=dict(x=0, y=1, z=0),
     center=dict(x=0, y=0, z=0),
@@ -27,7 +29,8 @@ def __wireframe_plot_data(m):
     wireframe = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
                              mode='lines',
                              line=dict(color='rgb(75,75,75)', width=1),
-                             hoverinfo='none')
+                             hoverinfo='none',
+                             name="wireframe")
     return wireframe
 
 
@@ -46,7 +49,8 @@ def display_mesh_pointset(m, points):
                              z=points[:, 2],
                              mode='markers',
                              marker_size=3,
-                             line=dict(color='rgb(125,0,0)', width=1))
+                             line=dict(color='rgb(125,0,0)', width=1),
+                             name="pointset")
 
     mesh_data = [wireframe, point_set]
     lyt = go.Layout(width=850, height=800)
@@ -76,7 +80,8 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                                          z=s_fixed[:, 2],
                                          mode='markers',
                                          marker_size=3,
-                                         line=dict(color='rgb(0,0,125)', width=1))
+                                         line=dict(color='rgb(0,0,125)', width=1),
+                                         name="medial sheets")
         mesh_data += [medial_axis_fixed]
 
         if len(s_notfixed > 0):
@@ -85,7 +90,8 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                                                 z=s_notfixed[:, 2],
                                                 mode='markers',
                                                 marker_size=3,
-                                                line=dict(color='rgb(0,125,0)', width=1))
+                                                line=dict(color='rgb(0,125,0)', width=1),
+                                                name="medial curve")
             mesh_data += [medial_axis_notfixed]
     else:
         medial_axis = go.Scatter3d(x=inner_points.positions[:, 0],
@@ -93,7 +99,8 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                                    z=inner_points.positions[:, 2],
                                    mode='markers',
                                    marker_size=3,
-                                   line=dict(color='rgb(0,0,125)', width=1))
+                                   line=dict(color='rgb(0,0,125)', width=1),
+                                   name="inner")
         mesh_data = [medial_axis]
 
     outer = go.Scatter3d(x=outer_points.positions[:, 0],
@@ -101,7 +108,8 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                          z=outer_points.positions[:, 2],
                          mode='markers',
                          marker_size=3,
-                         line=dict(color='rgb(125,0,0)', width=1))
+                         line=dict(color='rgb(125,0,0)', width=1),
+                         name="outer")
 
     # Create the lines connecting outer to inner points.
     connections = []
@@ -116,13 +124,72 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                                     z=connections[:, 2],
                                     mode='lines',
                                     line=dict(color='black', width=1),
-                                    hoverinfo='none')
+                                    hoverinfo='none',
+                                    name="connections")
 
     if show_wireframe:
         wireframe = __wireframe_plot_data(m)
         mesh_data += [wireframe]
     if show_connections:
         mesh_data += [connecting_lines, outer]
+
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            aspectmode="data",
+            camera=camera
+        ),
+        width=850, height=1200
+    )
+
+    if save_file is not None:
+        fig.write_html(f"results/{save_file}.html")
+    else:
+        fig.show()
+
+
+def display_medial_axis_result(ma: MedialAxis, show_connections=False, save_file=None):
+    medial_axis = go.Scatter3d(x=ma.mesh.positions()[:, 0],
+                               y=ma.mesh.positions()[:, 1],
+                               z=ma.mesh.positions()[:, 2],
+                               mode='markers',
+                               marker_size=3,
+                               line=dict(color='rgb(0,0,125)', width=1),
+                               name="inner")
+
+    outer = go.Scatter3d(x=ma.outer_points.positions[:, 0],
+                         y=ma.outer_points.positions[:, 1],
+                         z=ma.outer_points.positions[:, 2],
+                         mode='markers',
+                         marker_size=3,
+                         line=dict(color='rgb(125,0,0)', width=1),
+                         name="outer")
+
+    # Create the lines connecting outer to inner points.
+    connections = []
+    for inner_pos, outer_list in ma.map.items():
+        for outer in outer_list:
+            connections.append(np.array(inner_pos))
+            connections.append(outer.pos)
+            connections.append(array([None, None, None]))
+
+    connections = array(connections)
+
+    connecting_lines = go.Scatter3d(x=connections[:, 0],
+                                    y=connections[:, 1],
+                                    z=connections[:, 2],
+                                    mode='lines',
+                                    line=dict(color='black', width=1),
+                                    hoverinfo='none',
+                                    name="connections")
+
+    wireframe = __wireframe_plot_data(ma.mesh)
+    mesh_data = [medial_axis, wireframe, outer]
+    if show_connections:
+        mesh_data += [connecting_lines]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
@@ -224,6 +291,40 @@ def display_uv(m, uv):
             yaxis=dict(visible=False),
             zaxis=dict(visible=False),
             aspectmode="data"
+        ),
+        width=850, height=1200
+    )
+
+    fig.show()
+
+
+def display_highlight(m, outer_points, inner_points, vid):
+    mesh_data = []
+    medial_axis = go.Scatter3d(x=np.array(inner_points.positions[vid, 0]),
+                               y=np.array(inner_points.positions[vid, 1]),
+                               z=np.array(inner_points.positions[vid, 2]),
+                               mode='markers',
+                               marker_size=3,
+                               line=dict(color='rgb(0,0,125)', width=1),
+                               name="inner")
+    mesh_data = [medial_axis]
+
+    outer = go.Scatter3d(x=np.array(outer_points.positions[vid, 0]),
+                         y=np.array(outer_points.positions[vid, 1]),
+                         z=np.array(outer_points.positions[vid, 2]),
+                         mode='markers',
+                         marker_size=3,
+                         line=dict(color='rgb(125,0,0)', width=1),
+                         name="outer")
+
+    wireframe = __wireframe_plot_data(m)
+    mesh_data += [wireframe, outer]
+
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        scene=dict(
+            aspectmode="data",
+            camera=camera
         ),
         width=850, height=1200
     )
