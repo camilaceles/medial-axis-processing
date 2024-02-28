@@ -3,36 +3,40 @@ import numpy as np
 import random
 from pygel3d import hmesh
 from medial_axis_formation.point import PointSet
+from collections import deque
+
+
+def __precompute_face_adjacencies(mesh):
+    adjacency_dict = {}
+    for adj_index, faces in enumerate(mesh.face_adjacency):
+        for face in faces:
+            if face not in adjacency_dict:
+                adjacency_dict[face] = []
+            adjacency_dict[face].append((adj_index, set(faces) - {face}))
+    return adjacency_dict
 
 
 def __expand_from_triangle(mesh: trimesh.Trimesh, start_face: int, angle_threshold_degrees: float):
     angle_threshold_radians = np.radians(angle_threshold_degrees)
 
-    sheet_faces = {start_face}  # set of faces in same sheet as start_face
-    to_visit = [start_face]  # queue of faces to visit
+    sheet_faces = {start_face}
+    to_visit = deque([start_face])
+
+    adjacency_dict = __precompute_face_adjacencies(mesh)
 
     while to_visit:
-        # visit face in front of queue
-        current_face = to_visit.pop(0)
+        current_face = to_visit.popleft()
 
-        # find indices of adjacent faces
-        adjacent_indices = np.where(mesh.face_adjacency[:, 0] == current_face)[0]
-        adjacent_indices = np.append(adjacent_indices, np.where(mesh.face_adjacency[:, 1] == current_face)[0])
+        if current_face in adjacency_dict:
+            for adj_index, other_faces in adjacency_dict[current_face]:
+                adj_face = next(iter(other_faces))
 
-        for adj_index in adjacent_indices:
-            # find adjacent face
-            adj_face = mesh.face_adjacency[adj_index][1] \
-                if mesh.face_adjacency[adj_index][0] == current_face \
-                else mesh.face_adjacency[adj_index][0]
+                if adj_face not in sheet_faces:
+                    angle = mesh.face_adjacency_angles[adj_index]
 
-            if adj_face not in sheet_faces:
-                # check if adjacent face is in same sheet as currently visited face
-                angle = mesh.face_adjacency_angles[adj_index]
-
-                if angle < angle_threshold_radians:
-                    # if yes, add it to the sheet set, and to the queue to be visited
-                    sheet_faces.add(adj_face)
-                    to_visit.append(adj_face)
+                    if angle < angle_threshold_radians:
+                        sheet_faces.add(adj_face)
+                        to_visit.append(adj_face)
 
     return sheet_faces
 
@@ -51,7 +55,7 @@ def __single_sheet(m: hmesh.Manifold, dihedral_angle_threshold: float):
         start_face = random.choice(range(len(trimesh_mesh.faces)))
         sheet_faces = __expand_from_triangle(trimesh_mesh, start_face, dihedral_angle_threshold)
 
-        if len(sheet_faces) > 0.4 * n_org_faces:
+        if len(sheet_faces) > 0.3 * n_org_faces:
             break
         if i == 9:
             print("Couldn't extract a single sheet. Try a bigger `dihedral_angle_threshold`")

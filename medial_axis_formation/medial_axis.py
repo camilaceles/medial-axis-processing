@@ -36,6 +36,6 @@ class MedialAxis:
             else:
                 self.map[key]['outer_points'].append(p)
 
-    def inner_point_to_outer_points(self, q: Point):
-        key = tuple(q.pos)
+    def medial_sheet_idx_to_outer_points(self, idx: int) -> list[Point]:
+        key = tuple(self.mesh.positions()[idx])
         return self.map[key]['outer_points']
