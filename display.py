@@ -3,8 +3,7 @@ import plotly.offline as py
 from pygel3d import hmesh, graph, jupyter_display
 from numpy import array
 import numpy as np
-
-from medial_axis_formation.medial_axis_backup import MedialAxis
+from medial_axis_formation.medial_axis import MedialAxis
 
 camera = dict(
     up=dict(x=0, y=1, z=0),
