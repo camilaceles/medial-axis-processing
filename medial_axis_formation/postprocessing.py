@@ -2,7 +2,7 @@ import trimesh
 import numpy as np
 import random
 from pygel3d import hmesh
-from medial_axis_formation.point import PointSet
+from commons.point import PointSet
 from collections import deque
 
 

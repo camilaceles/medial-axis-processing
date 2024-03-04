@@ -1,5 +1,4 @@
-import numpy as np
-from .point import *
+from commons.point import *
 
 
 def __run_PCA(inner_points: PointSet, radius: float) -> None:
@@ -148,6 +147,8 @@ def __regularize_curve_points(q1: Point, inner_points: PointSet, curve_regulariz
     neg_lengths_idx = np.where(proj_lengths <= 0)[0]
 
     if len(pos_lengths_idx) == 0 or len(neg_lengths_idx) == 0:
+        return
+    if len(pos_lengths_idx) == 0 and len(neg_lengths_idx) == 0:
         q1.is_fixed = True
         return
 
@@ -157,8 +158,8 @@ def __regularize_curve_points(q1: Point, inner_points: PointSet, curve_regulariz
     back_nearest_idx = neg_lengths_idx[proj_lengths[neg_lengths_idx].argmax()]
     back_nearest_pos = neighbors[back_nearest_idx].pos
 
-    q1.front_point = front_nearest_idx
-    q1.back_point = back_nearest_idx
+    q1.front_point = neighbors[front_nearest_idx].index
+    q1.back_point = neighbors[back_nearest_idx].index
 
     q1.pos = (front_nearest_pos + back_nearest_pos) / 2.0
 

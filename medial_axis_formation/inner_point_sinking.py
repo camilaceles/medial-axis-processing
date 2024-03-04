@@ -1,5 +1,5 @@
 import numpy as np
-from .point import PointSet
+from commons.point import PointSet
 
 N_ITERS_SINKING = 300
 params: dict = {}

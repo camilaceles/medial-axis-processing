@@ -1,5 +1,5 @@
-from display import *
-from .point import PointSet
+from commons.display import *
+from commons.point import PointSet
 from .meso_skeleton_formation import form_meso_skeleton, regularize_curve_points
 from .inner_point_sinking import sink_inner_points
 
