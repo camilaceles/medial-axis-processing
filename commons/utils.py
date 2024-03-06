@@ -57,8 +57,12 @@ def poisson_disk_sampling_on_mesh(m, n):
 
 def manifold_to_trimesh(m: hmesh.Manifold)-> trimesh.Trimesh:
     faces = np.array([m.circulate_face(fid) for fid in m.faces()])
-    trim = trimesh.Trimesh(vertices=m.positions(), faces=faces)
+    trim = trimesh.Trimesh(vertices=m.positions(), faces=faces, process=False)
     return trim
+
+
+def trimesh_to_manifold(trim: trimesh.Trimesh) -> hmesh.Manifold:
+    return hmesh.Manifold.from_triangles(trim.vertices, trim.faces)
 
 
 def barycentric_project(m: hmesh.Manifold, points: np.ndarray):

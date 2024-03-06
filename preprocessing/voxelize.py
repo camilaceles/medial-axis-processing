@@ -2,6 +2,7 @@ import numpy as np
 from pygel3d import hmesh
 import trimesh
 from trimesh.voxel.creation import voxelize
+from commons.utils import trimesh_to_manifold
 
 
 def voxel_remesh(m: hmesh.Manifold, voxel_size: float):
@@ -20,8 +21,9 @@ def voxel_remesh(m: hmesh.Manifold, voxel_size: float):
     remeshed.apply_translation(translation_vector)
 
     # take only largest connected component
-    connected_components = remeshed.split(only_watertight=False)
-    largest_component = connected_components[0]
+    connected_components = list(remeshed.split(only_watertight=False))
+    connected_components.sort(key=lambda x: len(x.faces))
+    largest_component = connected_components[-1]
 
-    voxelized = hmesh.Manifold.from_triangles(largest_component.vertices, largest_component.faces)
+    voxelized = trimesh_to_manifold(largest_component)
     return voxelized

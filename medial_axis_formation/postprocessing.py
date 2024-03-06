@@ -4,6 +4,7 @@ import random
 from pygel3d import hmesh
 from commons.point import PointSet
 from collections import deque
+from commons.utils import trimesh_to_manifold
 
 
 def __precompute_face_adjacencies(mesh):
@@ -46,24 +47,29 @@ def __single_sheet(m: hmesh.Manifold, dihedral_angle_threshold: float):
     faces = np.array([m.circulate_face(fid) for fid in m.faces()])
     trimesh_mesh = trimesh.Trimesh(vertices=m.positions(), faces=faces)
 
-    n_org_faces = len(m.faces())
+    sheet_faces = single_sheet_faces(trimesh_mesh, dihedral_angle_threshold)
+    sheet_mesh = trimesh_mesh.submesh([np.array(sheet_faces)], append=True)
+
+    sheet = trimesh_to_manifold(sheet_mesh)
+    return sheet
+
+
+def single_sheet_faces(trim: trimesh.Trimesh, dihedral_angle_threshold: float):
+    n_org_faces = len(trim.faces)
 
     sheet_faces = []
     # if a bad start face is chosen, the resulting mesh is only a few triangles,
-    # so we try until it results in at least 40% of the original face count
-    for i in range(10):
-        start_face = random.choice(range(len(trimesh_mesh.faces)))
-        sheet_faces = __expand_from_triangle(trimesh_mesh, start_face, dihedral_angle_threshold)
+    # so we try until it results in at least 30% of the original face count
+    for i in range(20):
+        start_face = random.choice(range(len(trim.faces)))
+        sheet_faces = __expand_from_triangle(trim, start_face, dihedral_angle_threshold)
 
         if len(sheet_faces) > 0.3 * n_org_faces:
             break
-        if i == 9:
+        if i == 19:
             print("Couldn't extract a single sheet. Try a bigger `dihedral_angle_threshold`")
 
-    sheet_mesh = trimesh_mesh.submesh([np.array(list(sheet_faces))], append=True)
-
-    sheet = hmesh.Manifold.from_triangles(sheet_mesh.vertices, sheet_mesh.faces)
-    return sheet
+    return list(sheet_faces)
 
 
 def to_medial_sheet(

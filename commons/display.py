@@ -1,5 +1,5 @@
 import plotly.graph_objs as go
-from pygel3d import hmesh
+from pygel3d import hmesh, jupyter_display
 from numpy import array
 import numpy as np
 from medial_axis_processing.medial_axis import MedialAxis
@@ -73,6 +73,7 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
     if debug:
         s_fixed = inner_points.positions[inner_points.is_fixed]
         s_notfixed = inner_points.positions[~inner_points.is_fixed]
+        s_connections = inner_points.positions[inner_points.is_connection]
         medial_axis_fixed = go.Scatter3d(x=s_fixed[:, 0],
                                          y=s_fixed[:, 1],
                                          z=s_fixed[:, 2],
@@ -80,7 +81,15 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                                          marker_size=3,
                                          line=dict(color='rgb(0,0,125)', width=1),
                                          name="medial sheets")
-        mesh_data += [medial_axis_fixed]
+        medial_axis_connections = go.Scatter3d(x=s_connections[:, 0],
+                                         y=s_connections[:, 1],
+                                         z=s_connections[:, 2],
+                                         mode='markers',
+                                         marker_size=6,
+                                         line=dict(color='rgb(125,0,0)', width=1),
+                                        name="sheet to curve connection points")
+
+        mesh_data += [medial_axis_fixed, medial_axis_connections]
 
         if len(s_notfixed > 0):
             medial_axis_notfixed = go.Scatter3d(x=s_notfixed[:, 0],
@@ -317,6 +326,36 @@ def display_highlight(m, outer_points, inner_points, vid):
 
     wireframe = __wireframe_plot_data(m)
     mesh_data += [wireframe, outer]
+
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        scene=dict(
+            aspectmode="data",
+            camera=camera
+        ),
+        width=850, height=1200
+    )
+
+    fig.show()
+
+
+def display_graph(g):
+    mesh_data = []
+    pos = g.positions()
+    xyze = []
+    for v in g.nodes():
+        for w in g.neighbors(v):
+            if v < w:
+                p0 = pos[v]
+                p1 = pos[w]
+                xyze.append(array(p0))
+                xyze.append(array(p1))
+                xyze.append(array([None, None, None]))
+    xyze = array(xyze)
+    trace1 = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
+                          mode='lines',
+                          line=dict(color='rgb(0,0,0)', width=1))
+    mesh_data += [trace1]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(

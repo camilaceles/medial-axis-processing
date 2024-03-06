@@ -1,8 +1,6 @@
-from typing import Optional
 import numpy as np
 from numpy import ndarray as array
 from scipy.spatial import KDTree
-from pygel3d import *
 
 
 class Point:
@@ -122,6 +120,22 @@ class Point:
     def back_point(self, value):
         self.point_set.back_point[self.index] = value
 
+    @property
+    def graph_index(self) -> int:
+        return self.point_set.graph_index[self.index]
+
+    @graph_index.setter
+    def graph_index(self, value):
+        self.point_set.graph_index[self.index] = value
+
+    @property
+    def is_connection(self) -> bool:
+        return self.point_set.is_connection[self.index]
+
+    @is_connection.setter
+    def is_connection(self, value):
+        self.point_set.is_connection[self.index] = value
+
 
 class PointSet:
     class _PointSetIterator:
@@ -158,8 +172,10 @@ class PointSet:
         self.repulsion: array = np.zeros((self.N, 3))
         self.repulsion_weight_sum: array = np.zeros(self.N)
 
-        self.front_point: array = np.ones(self.N) * -1
-        self.back_point: array = np.ones(self.N) * -1
+        self.graph_index: array = np.ones(self.N, dtype=int) * -1
+        self.is_connection: array = np.zeros(self.N, dtype=bool)
+        self.front_point: array = np.ones(self.N, dtype=int) * -1
+        self.back_point: array = np.ones(self.N, dtype=int) * -1
 
     def __getitem__(self, index):
         return Point(self, index)
@@ -176,8 +192,6 @@ class PointSet:
 
         # remove point itself from neighbourhood and update it
         for i, neighborhood in enumerate(neighborhoods):
-            if i not in neighborhood:
-                print(self.positions[i])
             neighborhood.remove(i)
             self.neighborhoods[i] = np.array(neighborhood, dtype=int)
 

@@ -163,6 +163,13 @@ def __regularize_curve_points(q1: Point, inner_points: PointSet, curve_regulariz
 
     q1.pos = (front_nearest_pos + back_nearest_pos) / 2.0
 
+    if neighbors[front_nearest_idx].is_fixed:
+        neighbors[front_nearest_idx].is_connection = True
+        neighbors[front_nearest_idx].back_point = q1.index
+    if neighbors[back_nearest_idx].is_fixed:
+        neighbors[back_nearest_idx].is_connection = True
+        neighbors[back_nearest_idx].front_point = q1.index
+
 
 def regularize_curve_points(outer_points: PointSet, inner_points: PointSet, params: dict) -> None:
     r = outer_points.get_average_sparsity()
