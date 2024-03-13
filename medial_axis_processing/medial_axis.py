@@ -1,10 +1,8 @@
 import numpy as np
-from numpy import ndarray as array
+from scipy.spatial import KDTree
 from pygel3d import *
 from commons.point import Point, PointSet
 import copy
-import trimesh
-from commons.utils import manifold_to_trimesh, barycentric_project
 
 
 class MedialAxis:
@@ -16,25 +14,20 @@ class MedialAxis:
         self.sheet_indices = self.inner_points.is_fixed
 
         # build correspondences maps
-        self.inner_barycentrics: array = np.zeros((inner_points.N,  4))
-        self.correspondences: list[list[Point]] = [[] for _ in range(len(self.mesh.vertices()))]
+        self.inner_indices: np.ndarray = np.arange(self.inner_points.N)  # stores the indices of corresponding inner points in the medial structure
+        self.correspondences: list[list[Point]] = [[] for _ in range(self.inner_points.N)]  # stores the outer points corresponding to each inner point
         self.__map_correspondences()
 
     def __map_correspondences(self):
-        # project inner points to medial sheet using barycentric coordinates
-        face_ids, barycentrics = barycentric_project(self.mesh, self.inner_points.positions[self.sheet_indices])
-        self.inner_barycentrics[self.sheet_indices, 0] = face_ids
-        self.inner_barycentrics[self.sheet_indices, 1:] = barycentrics
+        # Project sheet inner points to medial sheet.
+        # Curve inner points are not projected, and instead their original position and correspondence.
+        single_sheet_pos = self.mesh.positions()
 
-    def get_updated_inner_points(self, new_positions: array) -> array:
-        updated_m = hmesh.Manifold(self.mesh)
-        updated_m.positions()[:] = new_positions
-        trim = manifold_to_trimesh(updated_m)
-        triangles = trim.triangles[self.inner_barycentrics[self.sheet_indices, 0].astype(int)]
+        kd_tree = KDTree(single_sheet_pos)
+        _, sheet_inner_indices = kd_tree.query(self.inner_points.positions[self.sheet_indices])
+        projected = single_sheet_pos[sheet_inner_indices]
+        self.inner_points.positions[self.sheet_indices] = projected
+        self.inner_indices[self.sheet_indices] = sheet_inner_indices
 
-        new_inner_positions = trimesh.triangles.barycentric_to_points(
-            triangles,
-            self.inner_barycentrics[self.sheet_indices, 1:]
-        )
-
-        return new_inner_positions
+        for i, outer_point in enumerate(self.outer_points):
+            self.correspondences[self.inner_indices[i]].append(outer_point)
