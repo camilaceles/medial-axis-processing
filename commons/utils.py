@@ -1,6 +1,8 @@
 import trimesh
 from pygel3d import hmesh
 import numpy as np
+import pickle
+from commons.point import PointSet
 
 
 def smooth(m, max_iter=1):
@@ -74,3 +76,15 @@ def barycentric_project(m: hmesh.Manifold, points: np.ndarray):
     barycentrics = trimesh.triangles.points_to_barycentric(triangles, points)
 
     return face_ids, barycentrics
+
+
+def save_pointset_to_file(point_set: PointSet, file_path: str) -> None:
+    with open(file_path, 'wb') as file:
+        pickle.dump(point_set, file)
+
+
+def load_pointset_from_file(file_path: str) -> PointSet:
+    with open(file_path, 'rb') as file:
+        point_set = pickle.load(file)
+    return point_set
+

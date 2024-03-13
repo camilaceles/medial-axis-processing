@@ -64,29 +64,36 @@ def __get_unfolded_positions(ma: MedialAxis) -> np.ndarray:
 
 def unfold_medial_axis(ma: MedialAxis):
     uv = __get_unfolded_positions(ma)
-    new_inner_points = ma.get_updates_inner_points(uv)
-    face_ids = ma.inner_barycentrics[:, 0].astype(int)
+    new_inner_points = ma.get_updated_inner_points(uv)
+    face_ids = ma.inner_barycentrics[ma.sheet_indices, 0].astype(int)
     positions = ma.mesh.positions()
 
-    for p, q, new_q, fid in zip(ma.outer_points, ma.inner_points, new_inner_points, face_ids):
+    new_outer_points = []
+
+    for p_pos, q_pos, new_q, fid in zip(
+            ma.outer_points.positions[ma.sheet_indices],
+            ma.inner_points.positions[ma.sheet_indices],
+            new_inner_points,
+            face_ids
+    ):
         face_vertices = ma.mesh.circulate_face(fid)
 
         # find two face vertices that aren't the point itself
         v1, v2 = None, None
-        if np.allclose(q.pos, positions[face_vertices[0]]):
+        if np.allclose(q_pos, positions[face_vertices[0]]):
             v1, v2 = face_vertices[1], face_vertices[2]
-        elif np.allclose(q.pos, positions[face_vertices[1]]):
+        elif np.allclose(q_pos, positions[face_vertices[1]]):
             v1, v2 = face_vertices[0], face_vertices[2]
         else:
             v1, v2 = face_vertices[0], face_vertices[1]
 
-        basis_old = __get_local_basis(q.pos, positions[v1], positions[v2])
-        local_coords = __project_point_to_basis(p.pos, q.pos, basis_old)
+        basis_old = __get_local_basis(q_pos, positions[v1], positions[v2])
+        local_coords = __project_point_to_basis(p_pos, q_pos, basis_old)
 
         basis_new = __get_local_basis(new_q, uv[v1], uv[v2])
         new_pos = __update_point(new_q, local_coords, basis_new)
-
-        p.pos = new_pos
+        new_outer_points.append(new_pos)
 
     ma.mesh.positions()[:] = uv
     ma.inner_points.positions = new_inner_points
+    ma.outer_points.positions[ma.sheet_indices] = np.array(new_outer_points)

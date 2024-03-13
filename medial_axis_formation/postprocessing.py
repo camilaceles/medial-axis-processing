@@ -58,21 +58,26 @@ def single_sheet_faces(trim: trimesh.Trimesh, dihedral_angle_threshold: float):
     n_org_faces = len(trim.faces)
 
     sheet_faces = []
+    max_faces_length = 0
     # if a bad start face is chosen, the resulting mesh is only a few triangles,
     # so we try until it results in at least 30% of the original face count
-    for i in range(20):
+    for i in range(10):
         start_face = random.choice(range(len(trim.faces)))
-        sheet_faces = __expand_from_triangle(trim, start_face, dihedral_angle_threshold)
+        potential_sheet_faces = __expand_from_triangle(trim, start_face, dihedral_angle_threshold)
 
-        if len(sheet_faces) > 0.3 * n_org_faces:
-            break
-        if i == 19:
-            print("Couldn't extract a single sheet. Try a bigger `dihedral_angle_threshold`")
+        # if good enough, return immediately
+        if len(potential_sheet_faces) > 0.2 * n_org_faces:
+            return list(potential_sheet_faces)
 
-    return list(sheet_faces)
+        # otherwise return the largest sheet found
+        if len(potential_sheet_faces) > max_faces_length:
+            sheet_faces = list(potential_sheet_faces)
+            max_faces_length = len(sheet_faces)
+
+    return sheet_faces
 
 
-def to_medial_sheet(
+def to_medial_sheet(  # TODO this needs to handle multiple sheets
         m: hmesh.Manifold,
         inner_points: PointSet,
         dihedral_angle_threshold: float

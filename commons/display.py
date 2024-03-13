@@ -361,7 +361,10 @@ def display_graph(g):
     fig.update_layout(
         scene=dict(
             aspectmode="data",
-            camera=camera
+            camera=camera,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
         ),
         width=850, height=1200
     )
