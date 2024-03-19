@@ -63,3 +63,96 @@ class MedialAxis:
                 self.curves[i] = curve[::-1]  # reverse curve so first index is where it connects to sheet
                 self.inner_points.is_connection[end.index] = closest_end
 
+    def to_graph(self):
+        g = graph.Graph()
+
+        # add curve connections
+        for q in self.inner_points:
+            g.add_node(q.pos)
+
+        for curve in self.curves:
+            for i in range(len(curve) - 1):
+                g.connect_nodes(curve[i].index, curve[i+1].index)
+
+        # add sheet connections
+        vid_offset = len(g.nodes())
+        for vid in self.sheet.vertices():
+            g.add_node(self.sheet.positions()[vid])
+
+        for vid in self.sheet.vertices():
+            neighbors = self.sheet.circulate_vertex(vid)
+            for n in neighbors:
+                g.connect_nodes(vid + vid_offset, n + vid_offset)
+
+        # connect curves to sheet
+        for curve in self.curves:
+            start = curve[0]
+            connection = start.is_connection
+            g.connect_nodes(start.index, connection + vid_offset)
+
+        return g
+
+
+########################################################################################################################
+# Graph with multiple sheets
+########################################################################################################################
+
+# g = graph.Graph()
+# for q in inner_points:
+#     g.add_node(q.pos)
+#
+# dihedral_angle_threshold = 90
+# r = outer_points.get_average_sparsity()
+#
+# # build manifold from fixed inner points (medial sheet points)
+#
+# inner_mesh = hmesh.Manifold(input_mesh)
+# inner_mesh.positions()[:] = inner_points.positions
+# for p in inner_points:
+#     if not p.is_fixed:
+#         inner_mesh.remove_vertex(p.index)
+#
+# faces = np.array([inner_mesh.circulate_face(fid) for fid in inner_mesh.faces()])
+# trim = trimesh.Trimesh(vertices=inner_mesh.positions(), faces=faces, process=False)
+#
+# # trim = manifold_to_trimesh(inner_mesh)
+#
+# connected_components = trimesh.graph.connected_components(
+#     edges=trim.face_adjacency, nodes=np.arange(len(trim.faces))
+# )
+#
+# edge_lengths = []
+# medial_sheet_faces = []
+# # get submeshes keeping vertex index correspondaces
+# for component in connected_components:
+#     sub_mesh = trimesh.Trimesh(vertices=trim.vertices, faces=trim.faces[component], process=False)
+#     sheet_faces_indexes = single_sheet_faces(sub_mesh, dihedral_angle_threshold)
+#     sheet_faces = sub_mesh.faces[sheet_faces_indexes]
+#     medial_sheet_faces.append(sheet_faces)
+#
+#     edges = np.vstack([sheet_faces[:, [0, 1]], sheet_faces[:, [1, 2]], sheet_faces[:, [0, 2]]])
+#
+#     for edge in edges:
+#         g.connect_nodes(edge[0], edge[1])
+#         edge_lengths.append(np.linalg.norm(g.positions()[edge[0]] - g.positions()[edge[1]]))
+#
+# sheets_pos = np.array([g.positions()[node] for node in g.nodes() if len(g.neighbors(node)) > 0])
+# sheets_idx = [node for node in g.nodes() if len(g.neighbors(node)) > 0]
+#
+# for q in inner_points:
+#     if not q.is_fixed:
+#         g.connect_nodes(q.index, q.front_point)
+#         g.connect_nodes(q.index, q.back_point)
+#
+# kd = KDTree(sheets_pos)
+#
+# # for each curve, connection is the one closest to medial sheet
+# for end1, end2 in endpoints:
+#     dist1, closest1 = kd.query(g.positions()[end1], k=1)
+#     dist2, closest2 = kd.query(g.positions()[end2], k=1)
+#     if dist1 < dist2:
+#         g.connect_nodes(end1, sheets_idx[closest1])
+#         inner_points.is_connection[end1] = sheets_idx[closest1]
+#     else:
+#         g.connect_nodes(end2, sheets_idx[closest2])
+#         inner_points.is_connection[end2] = sheets_idx[closest2]
