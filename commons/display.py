@@ -167,9 +167,9 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
 
 
 def display_medial_axis_result(ma: MedialAxis, show_connections=False, save_file=None):
-    medial_axis = go.Scatter3d(x=ma.mesh.positions()[:, 0],
-                               y=ma.mesh.positions()[:, 1],
-                               z=ma.mesh.positions()[:, 2],
+    medial_axis = go.Scatter3d(x=ma.sheet.positions()[:, 0],
+                               y=ma.sheet.positions()[:, 1],
+                               z=ma.sheet.positions()[:, 2],
                                mode='markers',
                                marker_size=3,
                                line=dict(color='rgb(0,0,125)', width=1),
@@ -201,7 +201,7 @@ def display_medial_axis_result(ma: MedialAxis, show_connections=False, save_file
                                     hoverinfo='none',
                                     name="connections")
 
-    wireframe = __wireframe_plot_data(ma.mesh)
+    wireframe = __wireframe_plot_data(ma.sheet)
     mesh_data = [medial_axis, wireframe, outer]
     if show_connections:
         mesh_data += [connecting_lines]

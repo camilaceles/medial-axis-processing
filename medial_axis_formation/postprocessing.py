@@ -1,8 +1,8 @@
 import trimesh
 import numpy as np
 import random
-from pygel3d import hmesh
-from commons.point import PointSet
+from pygel3d import hmesh, graph
+from commons.point import PointSet, Point
 from collections import deque
 from commons.utils import trimesh_to_manifold
 
@@ -78,14 +78,66 @@ def single_sheet_faces(trim: trimesh.Trimesh, dihedral_angle_threshold: float):
 
 
 def to_medial_sheet(  # TODO this needs to handle multiple sheets
-        m: hmesh.Manifold,
+        input_mesh: hmesh.Manifold,
         inner_points: PointSet,
         dihedral_angle_threshold: float
 ) -> hmesh.Manifold:
-    inner_mesh = hmesh.Manifold(m)
-    pos = inner_mesh.positions()
-    pos[:] = inner_points.positions
+    inner_mesh = hmesh.Manifold(input_mesh)
 
+    sheet_indices = inner_points.is_fixed
+
+    pos = inner_mesh.positions()
+    pos[sheet_indices] = inner_points.positions[sheet_indices]
+
+    for q in inner_points:
+        if not q.is_fixed:
+            inner_mesh.remove_vertex(q.index)
+    inner_mesh.cleanup()
     # extract a single sheet from it and project remaining inner points to closest in the sheet
     single_sheet = __single_sheet(inner_mesh, dihedral_angle_threshold)
     return single_sheet
+
+
+def to_medial_curves(inner_points: PointSet, keep_n_curves: int = None) -> list[list[int]]:
+    """Find curves in the medial axis"""
+
+    # Use graph as auxiliary data structure to find connections between curve points
+    g = graph.Graph()
+    for q in inner_points:
+        g.add_node(q.pos)
+
+    for q in inner_points:
+        if not q.is_fixed:
+            g.connect_nodes(q.index, q.front_point)
+            g.connect_nodes(q.index, q.back_point)
+
+    visited = set()
+
+    def __expand_from_endpoint(endpoint: int) -> list[int]:
+        path = [endpoint]
+        while True:
+            visited.add(endpoint)
+            next_nodes = [n for n in g.neighbors(endpoint) if n not in visited]
+            if not next_nodes:
+                break
+            endpoint = next_nodes[0]
+            path.append(endpoint)
+        return path
+
+    curves = []
+    for node in g.nodes():
+        if node not in visited and len(g.neighbors(node)) == 1:
+            # Start points are unvisited nodes with 1 neighbors (curve endpoint)
+            curve_points = __expand_from_endpoint(node)
+            curves.append(curve_points)
+
+    curves.sort(key=lambda s: -len(s))  # Sort curves by length
+
+    # Only keep the n longest curves
+    if keep_n_curves is not None:
+        for curve in curves[keep_n_curves:]:
+            for point in curve:
+                inner_points[point].is_fixed = True
+        curves = curves[:keep_n_curves]
+
+    return curves

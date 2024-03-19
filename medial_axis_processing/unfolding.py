@@ -2,29 +2,18 @@ import igl
 import numpy as np
 from pygel3d import hmesh
 from medial_axis_processing.medial_axis import MedialAxis
+from scipy.spatial.transform import Rotation as R
+from sklearn.decomposition import PCA
 
 
-def __get_local_basis(v0, v1, v2):
-    # compute local basis at v0 given 2 adjacent vertices v1 and v2
-    b0 = v1 - v0
-    b0 /= np.linalg.norm(b0)
-
-    b2 = np.cross(b0, v2 - v0)
-    b2 /= np.linalg.norm(b2)
-
-    b1 = np.cross(b2, b0)
-    return b0, b1, b2
+def __compute_principal_axes(vertices):
+    pca = PCA(n_components=3)
+    pca.fit(vertices)
+    return pca.components_
 
 
-def __project_point_to_basis(point, vertex, basis):
-    # get point coordinates in local basis
-    v_p = point - vertex
-    return np.dot(v_p, basis[0]), np.dot(v_p, basis[1]), np.dot(v_p, basis[2])
-
-
-def __update_point(vertex_new, local_coords, new_basis):
-    # retrieve global coordinates from local basis coordinates
-    return vertex_new + local_coords[0] * new_basis[0] + local_coords[1] * new_basis[1] + local_coords[2] * new_basis[2]
+def __compute_rotation_matrix(src_axes, dst_axes):
+    return -1 * R.align_vectors(src_axes, dst_axes)[0].as_matrix()
 
 
 def __least_squares_conformal_map(m: hmesh.Manifold) -> np.ndarray:
@@ -45,40 +34,44 @@ def __least_squares_conformal_map(m: hmesh.Manifold) -> np.ndarray:
     return uv
 
 
-def __get_unfolded_positions(ma: MedialAxis) -> np.ndarray:
+def get_unfolded_sheet_positions(ma: MedialAxis) -> np.ndarray:
     """Returns the 3d coordinates for the unfolded medial axis using LSCM"""
-    ma_areas = np.array([ma.mesh.area(fid) for fid in ma.mesh.faces()])
+    original_axes = __compute_principal_axes(np.c_[ma.sheet.positions()[:,:2], np.zeros(ma.sheet.positions().shape[0])])
+    ma_areas = np.array([ma.sheet.area(fid) for fid in ma.sheet.faces()])
     ma_area = np.sum(ma_areas)
 
-    uv = __least_squares_conformal_map(ma.mesh)
+    uv = __least_squares_conformal_map(ma.sheet)
     uv = np.c_[uv, np.zeros(uv.shape[0])]
 
-    uv_mesh = hmesh.Manifold(ma.mesh)
+    # rotate uv mapping to align with original axes
+    unfolded_axes = __compute_principal_axes(uv)
+    rotation_matrix = __compute_rotation_matrix(unfolded_axes, original_axes)
+    uv[:] = np.dot(uv, rotation_matrix.T)
+
+    # compute area of uv mapped mesh
+    uv_mesh = hmesh.Manifold(ma.sheet)
     uv_mesh.positions()[:] = uv
-    uv_areas = np.array([uv_mesh.area(fid) for fid in ma.mesh.faces()])
+    uv_areas = np.array([uv_mesh.area(fid) for fid in ma.sheet.faces()])
     uv_area = np.sum(uv_areas)
 
     # scale uv mapping to approximate original MA area
     return uv * np.sqrt(ma_area / uv_area)
 
 
-def unfold_medial_axis(ma: MedialAxis):
-    uv = __get_unfolded_positions(ma)
-    positions = ma.mesh.positions()
+def get_unfolded_curve_positions(
+        ma: MedialAxis,
+        original_medial_sheet: np.ndarray,
+        unfolded_medial_sheet: np.ndarray
+) -> list[np.ndarray]:
+    unfolded_curve_positions = []
+    for curve in ma.curves:
+        curve_indices = [q.index for q in curve]
+        old_connection_pos = original_medial_sheet[curve[0].is_connection]
+        new_connection_pos = unfolded_medial_sheet[curve[0].is_connection]
 
-    for vid in ma.mesh.vertices():
-        v1 = ma.mesh.circulate_vertex(vid)[0]
-        v2 = ma.mesh.circulate_vertex(vid)[1]
+        new_curve_pos = np.copy(ma.inner_points.positions[curve_indices])
+        new_curve_pos += new_connection_pos - old_connection_pos
+        new_curve_pos[:, 2] = 0  # project to z=0 plane
+        unfolded_curve_positions.append(new_curve_pos)
 
-        for p in ma.correspondences[vid]:
-            basis_old = __get_local_basis(positions[vid], positions[v1], positions[v2])
-            local_coords = __project_point_to_basis(p.pos, positions[vid], basis_old)
-
-            basis_new = __get_local_basis(uv[vid], uv[v1], uv[v2])
-            new_pos = __update_point(uv[vid], local_coords, basis_new)
-
-            p.pos = new_pos
-
-    ma.mesh.positions()[:] = uv
-    new_inner_positions = uv[ma.inner_indices[ma.sheet_indices]]
-    ma.inner_points.positions[ma.sheet_indices] = new_inner_positions
+    return unfolded_curve_positions
