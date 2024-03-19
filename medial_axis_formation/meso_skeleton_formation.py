@@ -149,22 +149,25 @@ def __regularize_curve_points(q1: Point, inner_points: PointSet, curve_regulariz
     if len(pos_lengths_idx) == 0 and len(neg_lengths_idx) == 0:
         q1.is_fixed = True
         return
-    if len(pos_lengths_idx) == 0 or len(neg_lengths_idx) == 0:
-        return
 
-    front_nearest_idx = pos_lengths_idx[proj_lengths[pos_lengths_idx].argmin()]
-    front_nearest_pos = neighbors[front_nearest_idx].pos
+    if len(pos_lengths_idx) != 0:
+        front_nearest_idx = pos_lengths_idx[proj_lengths[pos_lengths_idx].argmin()]
+        q1.front_point = neighbors[front_nearest_idx].index
 
-    back_nearest_idx = neg_lengths_idx[proj_lengths[neg_lengths_idx].argmax()]
-    back_nearest_pos = neighbors[back_nearest_idx].pos
+    if len(neg_lengths_idx) != 0:
+        back_nearest_idx = neg_lengths_idx[proj_lengths[neg_lengths_idx].argmax()]
+        q1.back_point = neighbors[back_nearest_idx].index
 
-    q1.front_point = neighbors[front_nearest_idx].index
-    q1.back_point = neighbors[back_nearest_idx].index
-
-    q1.pos = (front_nearest_pos + back_nearest_pos) / 2.0
+    if len(pos_lengths_idx) != 0 and len(neg_lengths_idx) != 0:
+        front_nearest_pos = inner_points.positions[q1.front_point]
+        back_nearest_pos = inner_points.positions[q1.back_point]
+        q1.pos = (front_nearest_pos + back_nearest_pos) / 2.0
 
 
 def regularize_curve_points(outer_points: PointSet, inner_points: PointSet, params: dict) -> None:
+    for q in inner_points:
+        q.is_fixed = False
+
     r = outer_points.get_average_sparsity()
     radius = r * params["sigma_s"]
     curve_regularization_threshold = params["curve_regularization_threshold"]
@@ -183,9 +186,6 @@ def form_meso_skeleton(outer_points: PointSet, inner_points: PointSet, params: d
     r = outer_points.get_average_sparsity()
 
     radius = r * params["sigma_s"]
-
-    for q in inner_points:
-        q.is_fixed = False
 
     print("Running skeleton formation...")
     for i in range(3):

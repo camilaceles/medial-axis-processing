@@ -173,7 +173,7 @@ class PointSet:
         self.repulsion_weight_sum: array = np.zeros(self.N)
 
         self.graph_index: array = np.ones(self.N, dtype=int) * -1
-        self.is_connection: array = np.zeros(self.N, dtype=bool)
+        self.is_connection: array = np.ones(self.N, dtype=int) * -1
         self.front_point: array = np.ones(self.N, dtype=int) * -1
         self.back_point: array = np.ones(self.N, dtype=int) * -1
 

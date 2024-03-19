@@ -70,24 +70,31 @@ def display_mesh_pointset(m, points):
 
 def display_result(m, outer_points, inner_points, show_wireframe=False, show_connections=True, debug=False, save_file=None):
     mesh_data = []
+    fixed_indices = np.where(inner_points.is_fixed)[0]
+    not_fixed_indices = np.where(~inner_points.is_fixed)[0]
+    connection_indices = np.where(inner_points.is_connection != -1)[0]
+
     if debug:
         s_fixed = inner_points.positions[inner_points.is_fixed]
         s_notfixed = inner_points.positions[~inner_points.is_fixed]
-        s_connections = inner_points.positions[inner_points.is_connection]
+        s_connections = inner_points.positions[inner_points.is_connection != -1]
         medial_axis_fixed = go.Scatter3d(x=s_fixed[:, 0],
                                          y=s_fixed[:, 1],
                                          z=s_fixed[:, 2],
                                          mode='markers',
                                          marker_size=3,
                                          line=dict(color='rgb(0,0,125)', width=1),
-                                         name="medial sheets")
+                                         name="medial sheets",
+                                         text=fixed_indices, hoverinfo='text'
+                                         )
         medial_axis_connections = go.Scatter3d(x=s_connections[:, 0],
                                          y=s_connections[:, 1],
                                          z=s_connections[:, 2],
                                          mode='markers',
                                          marker_size=6,
                                          line=dict(color='rgb(125,0,0)', width=1),
-                                        name="sheet to curve connection points")
+                                         name="sheet to curve connection points",
+                                         text=connection_indices, hoverinfo='text')
 
         mesh_data += [medial_axis_fixed, medial_axis_connections]
 
@@ -98,7 +105,8 @@ def display_result(m, outer_points, inner_points, show_wireframe=False, show_con
                                                 mode='markers',
                                                 marker_size=3,
                                                 line=dict(color='rgb(0,125,0)', width=1),
-                                                name="medial curve")
+                                                name="medial curve",
+                                                text=not_fixed_indices, hoverinfo='text')
             mesh_data += [medial_axis_notfixed]
     else:
         medial_axis = go.Scatter3d(x=inner_points.positions[:, 0],

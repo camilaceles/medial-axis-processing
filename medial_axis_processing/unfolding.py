@@ -81,4 +81,4 @@ def unfold_medial_axis(ma: MedialAxis):
 
     ma.mesh.positions()[:] = uv
     new_inner_positions = uv[ma.inner_indices[ma.sheet_indices]]
-    ma.inner_points.positions = new_inner_positions
+    ma.inner_points.positions[ma.sheet_indices] = new_inner_positions
