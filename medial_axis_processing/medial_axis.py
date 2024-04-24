@@ -13,11 +13,13 @@ class MedialAxis:
             inner_points: np.ndarray,
             medial_sheet: hmesh.Manifold,
             medial_curves: list[list[int]],
-            correspondences: list[list[int]]
+            correspondences: list[list[int]],
+            medial_graph: graph.Graph = None
     ):
         self.surface: hmesh.Manifold = hmesh.Manifold(surface)
         self.inner_points: np.ndarray = np.copy(inner_points)
         self.outer_points: np.ndarray = np.copy(surface.positions())
+        self.graph = medial_graph
 
         self.sheet: hmesh.Manifold = hmesh.Manifold(medial_sheet)
         self.curves = medial_curves
@@ -33,6 +35,11 @@ class MedialAxis:
         self.sheet_correspondences: list[list[int]] = [[] for _ in range(len(self.sheet.vertices()))]
         self.__map_sheet_correspondences()
 
+        # Compute average radial basis function
+        self.rbf = np.zeros(self.inner_points.shape[0])
+        self.diffs = np.zeros(self.outer_points.shape)
+        self.__radial_basis_function()
+
     def __map_sheet_correspondences(self):
         # for each point in medial sheet, store corresponding outer points
         sheet_pos = self.sheet.positions()
@@ -45,6 +52,26 @@ class MedialAxis:
             if not self.curve_indices[inner_idx]:
                 for p in outer_points:
                     self.sheet_correspondences[sheet_inner_indices[inner_idx]].append(p)
+
+    def __radial_basis_function(self):
+        for i in range(len(self.inner_points)):
+            corr = self.correspondences[i]
+            inner_pos = self.inner_points[i]
+            outer_pos = self.outer_points[corr]
+
+            diffs = outer_pos - inner_pos
+            lens = np.linalg.norm(diffs, axis=1)
+
+            # weights = 1 / (lens + 1e-8)
+            # weighted_avg_len = np.average(lens, weights=weights)
+            if len(lens) == 0:
+                continue
+
+            avg_len = np.mean(lens)
+            norm_diffs = diffs / lens[:, np.newaxis]
+
+            self.rbf[i] = avg_len
+            self.diffs[corr] = norm_diffs
 
 
 def to_medial_curves(vertices, edges, faces):
@@ -94,11 +121,10 @@ def to_medial_sheet(vertices, faces):
     connected_components.sort(key=lambda x: -len(x.faces))
     to_keep = connected_components[0]
 
-    # face_areas = to_keep.area_faces
-    # faces_to_keep = face_areas > (0.1 * np.mean(face_areas))
-    # to_keep.update_faces(faces_to_keep)
-    # to_keep.remove_unreferenced_vertices()
+    face_areas = to_keep.area_faces
+    faces_to_keep = face_areas > (0.1 * np.mean(face_areas))
+    to_keep.update_faces(faces_to_keep)
+    to_keep.remove_unreferenced_vertices()
 
     return trimesh_to_manifold(to_keep)
-    # return to_keep.vertices, to_keep.faces
 

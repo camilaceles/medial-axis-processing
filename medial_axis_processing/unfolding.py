@@ -37,25 +37,35 @@ def __least_squares_conformal_map(m: hmesh.Manifold) -> np.ndarray:
 def get_unfolded_sheet_positions(ma: MedialAxis) -> np.ndarray:
     """Returns the 3d coordinates for the unfolded medial axis using LSCM"""
     original_axes = __compute_principal_axes(np.c_[ma.sheet.positions()[:,:2], np.zeros(ma.sheet.positions().shape[0])])
+    original_centroid = np.mean(ma.sheet.positions(), axis=0)
+    original_centroid[2] = 0
+    # original_axes = ma.sheet.positions()[:3, :2] - ma.sheet.positions()[3:6, :2]
+    # original_axes = np.c_[original_axes, np.zeros(original_axes.shape[0])]
+
     ma_areas = np.array([ma.sheet.area(fid) for fid in ma.sheet.faces()])
     ma_area = np.sum(ma_areas)
 
     uv = __least_squares_conformal_map(ma.sheet)
     uv = np.c_[uv, np.zeros(uv.shape[0])]
 
-    # rotate uv mapping to align with original axes
-    unfolded_axes = __compute_principal_axes(uv)
-    rotation_matrix = __compute_rotation_matrix(unfolded_axes, original_axes)
-    uv[:] = np.dot(uv, rotation_matrix.T)
-
-    # compute area of uv mapped mesh
+    # scale uv mapping to approximate original MA area
     uv_mesh = hmesh.Manifold(ma.sheet)
     uv_mesh.positions()[:] = uv
     uv_areas = np.array([uv_mesh.area(fid) for fid in ma.sheet.faces()])
     uv_area = np.sum(uv_areas)
 
-    # scale uv mapping to approximate original MA area
-    return uv * np.sqrt(ma_area / uv_area)
+    uv = uv * np.sqrt(ma_area / uv_area)
+
+    # rotate uv mapping to align with original axes
+    unfolded_axes = __compute_principal_axes(uv)
+    # unfolded_axes = uv[:3] - uv[3:6]
+    rotation_matrix = __compute_rotation_matrix(unfolded_axes, original_axes)
+    uv[:] = np.dot(uv, rotation_matrix.T)
+
+    # unfolded_centroid = np.mean(uv, axis=0)
+    # uv = uv - unfolded_centroid + original_centroid
+
+    return uv
 
 
 def get_unfolded_curve_positions(

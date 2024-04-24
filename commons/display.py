@@ -5,9 +5,9 @@ import numpy as np
 from medial_axis_processing.medial_axis import MedialAxis
 
 camera = dict(
-    up=dict(x=0, y=1, z=0),
+    up=dict(x=0, y=-1, z=0),
     center=dict(x=0, y=0, z=0),
-    eye=dict(x=0, y=1.5, z=-2)
+    eye=dict(x=0, y=0, z=3)
 )
 
 
@@ -26,7 +26,7 @@ def __wireframe_plot_data(m):
     xyze = array(xyze)
     wireframe = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
                              mode='lines',
-                             line=dict(color='rgb(75, 75, 75)', width=1),
+                             line=dict(color='rgb(0,0,0)', width=1),
                              hoverinfo='none',
                              name="wireframe")
     return wireframe
@@ -85,12 +85,11 @@ def display_medial_axis(ma: MedialAxis):
                          line=dict(color='rgb(0,125,0)', width=1),
                          name="outer")
     connections = []
-    for vid in ma.sheet.vertices():
-        for outer_idx in ma.sheet_correspondences[vid]:
-            connections.append(ma.sheet.positions()[vid])
-            connections.append(ma.outer_points[outer_idx])
+    for i, q in enumerate(ma.inner_points):
+        for p in ma.correspondences[i]:
+            connections.append(q)
+            connections.append(ma.outer_points[p])
             connections.append(array([None, None, None]))
-
     connections = array(connections)
 
     connecting_lines = go.Scatter3d(x=connections[:, 0],
@@ -320,7 +319,7 @@ def display_graph(g):
                              line=dict(color='rgb(125,0,0)', width=1),
                              name="pointset",
                              text=list(range(len(g.nodes()))), hoverinfo='text')
-    mesh_data = [trace1] #, point_set]
+    mesh_data = [trace1, point_set]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(

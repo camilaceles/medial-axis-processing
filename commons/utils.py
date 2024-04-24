@@ -106,7 +106,7 @@ def read_CA_MA(filename: str) -> hmesh.Manifold:
     return trimesh_to_manifold(trim)
 
 
-def read_ma(file_path):
+def read_qmat(file_path):
     vertices = []
     edges = []
     faces = []
@@ -150,7 +150,7 @@ def read_ma_ca(file_path):
     return np.array(vertices), edges, faces
 
 
-def find_minimum_gamma(mesh, inner_points, start=0.01, step=0.01):
+def find_minimum_gamma(mesh, inner_points, start, step):
     """Finds minimum addition to radii to cover all points in the mesh with given inner points"""
     tree = KDTree(mesh.positions())
     total_points = len(mesh.positions())
@@ -158,10 +158,9 @@ def find_minimum_gamma(mesh, inner_points, start=0.01, step=0.01):
     covered_points = set()
 
     while len(covered_points) < total_points:
+        # print("trying gamma: ", addition)
         R = tree.query(inner_points, k=1)[0] + addition
-        for i, radius in enumerate(R):
-            indices = tree.query_ball_point(inner_points[i], radius)
-            covered_points.update(indices)
+        covered_points = set(flatten(tree.query_ball_point(inner_points, R)))
 
         if len(covered_points) >= total_points:
             break
@@ -181,10 +180,16 @@ def __build_opposite_dict(nested_lists):
     return opposite_dict
 
 
-def build_ball_correspondences(mesh: hmesh.Manifold, inner_points: np.ndarray, gamma: float = None):
+def build_ball_correspondences(
+        mesh: hmesh.Manifold,
+        inner_points: np.ndarray,
+        gamma: float = None,
+        start: float = 0.01,
+        step: float = 0.01
+):
     # Find minimum gamma to cover all surface points and map correspondences from it
     if gamma is None:
-        gamma = find_minimum_gamma(mesh, inner_points)
+        gamma = find_minimum_gamma(mesh, inner_points, start, step)
         print("Chosen minimum gamma:", gamma)
 
     tree = KDTree(mesh.positions())

@@ -1,20 +1,17 @@
 import numpy as np
 from pygel3d import hmesh
-from commons.utils import flatten
 from medial_axis_processing.medial_axis import MedialAxis
 from scipy.spatial.transform import Rotation as R
 
 
-def __get_local_basis(v0, v1, v2):
-    # compute local basis at v0 given 2 adjacent vertices v1 and v2
+def __get_local_basis(v0, v1, n, inverse_normal=False):
+    if inverse_normal:
+        n = -n
+
     b0 = v1 - v0
     b0 /= np.linalg.norm(b0)
-
-    b2 = np.cross(b0, v2 - v0)
-    b2 /= np.linalg.norm(b2)
-
-    b1 = np.cross(b2, b0)
-    return b0, b1, b2
+    b1 = np.cross(n, b0)
+    return b0, b1, n
 
 
 def __project_point_to_basis(point, vertex, basis):
@@ -40,21 +37,28 @@ def __inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
     """Applies the transformation of the medial sheet onto corresponding inner and outer points.
        Does this by projecting the points to the local basis of the medial sheet vertex, and then updating the point"""
     positions = ma.sheet.positions()
+
+    updated_sheet = hmesh.Manifold(ma.sheet)
+    updated_sheet.positions()[:] = updated_sheet_positions
+
     new_outer_pos = np.copy(ma.outer_points)
 
     for vid in ma.sheet.vertices():
-        v1 = ma.sheet.circulate_vertex(vid)[0]
-        v2 = ma.sheet.circulate_vertex(vid)[1]
+        neighbor = ma.sheet.circulate_vertex(vid)[0]
 
         for outer_idx in ma.sheet_correspondences[vid]:
             outer_point = ma.outer_points[outer_idx]
 
-            basis_old = __get_local_basis(positions[vid], positions[v1], positions[v2])
+            n_old = ma.sheet.vertex_normal(vid)
+            # diff = outer_point - positions[vid]
+            # angle = np.arccos(np.dot(diff, n_old) / np.linalg.norm(diff))
+            basis_old = __get_local_basis(positions[vid], positions[neighbor], n_old)
+
+            n_new = updated_sheet.vertex_normal(vid)
+            basis_new = __get_local_basis(updated_sheet_positions[vid], updated_sheet_positions[neighbor], n_new)
+
             local_coords = __project_point_to_basis(outer_point, positions[vid], basis_old)
-
-            basis_new = __get_local_basis(updated_sheet_positions[vid], updated_sheet_positions[v1], updated_sheet_positions[v2])
             new_pos = __update_point(updated_sheet_positions[vid], local_coords, basis_new)
-
             new_outer_pos[outer_idx] = new_pos
 
     ma.sheet.positions()[:] = updated_sheet_positions
@@ -92,13 +96,12 @@ def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, out
 
 
 def apply_inverse_medial_axis_transform(
-        original_mesh: hmesh.Manifold,
         medial_axis: MedialAxis,
         updated_sheet_positions: np.ndarray,
         updated_curve_positions: list[np.ndarray]
 ):
     __inverse_apply_sheet(medial_axis, updated_sheet_positions)
-    original_mesh.positions()[:] = medial_axis.outer_points
+    medial_axis.surface.positions()[:] = medial_axis.outer_points
 
     for i, curve in enumerate(medial_axis.curves):
         inner_points = medial_axis.inner_points[curve]
@@ -118,4 +121,4 @@ def apply_inverse_medial_axis_transform(
             if len(indices) == 0:
                 continue
             medial_axis.outer_points[indices] = new_outer_points[j]
-            original_mesh.positions()[indices] = new_outer_points[j]
+            medial_axis.surface.positions()[indices] = new_outer_points[j]
