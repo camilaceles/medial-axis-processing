@@ -1,7 +1,7 @@
 import igl
 import numpy as np
 from pygel3d import hmesh
-from medial_axis_processing.medial_axis import MedialAxis
+from commons.medial_axis import MedialAxis
 from scipy.spatial.transform import Rotation as R
 from sklearn.decomposition import PCA
 

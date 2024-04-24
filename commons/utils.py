@@ -106,28 +106,6 @@ def read_CA_MA(filename: str) -> hmesh.Manifold:
     return trimesh_to_manifold(trim)
 
 
-def read_qmat(file_path):
-    vertices = []
-    edges = []
-    faces = []
-
-    with open(file_path, 'r') as file:
-        for line in file:
-            if line.startswith('v '):
-                parts = line.strip().split()
-                vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
-
-            elif line.startswith('e ') or line.startswith('l '):
-                parts = line.strip().split()
-                edges.append([int(parts[1]), int(parts[2])])
-
-            elif line.startswith('f '):
-                parts = line.strip().split()
-                faces.append([int(parts[1]), int(parts[2]), int(parts[3])])
-
-    return np.array(vertices), edges, faces
-
-
 def read_ma_ca(file_path):
     vertices = []
     edges = []

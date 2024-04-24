@@ -1,6 +1,6 @@
 import numpy as np
 from pygel3d import hmesh
-from medial_axis_processing.medial_axis import MedialAxis
+from commons.medial_axis import MedialAxis
 from scipy.spatial.transform import Rotation as R
 
 
@@ -115,7 +115,6 @@ def apply_inverse_medial_axis_transform(
     medial_axis.surface.positions()[:] = medial_axis.outer_points
 
     for i, curve in enumerate(medial_axis.curves):
-        print("curve", i)
         inner_points = medial_axis.inner_points[curve]
         outer_points_indices = medial_axis.correspondences[curve]
 

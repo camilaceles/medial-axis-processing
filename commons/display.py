@@ -1,8 +1,8 @@
 import plotly.graph_objs as go
-from pygel3d import hmesh, jupyter_display
+from pygel3d import hmesh
 from numpy import array
 import numpy as np
-from medial_axis_processing.medial_axis import MedialAxis
+from commons.medial_axis import MedialAxis
 
 camera = dict(
     up=dict(x=0, y=-1, z=0),
@@ -48,7 +48,7 @@ def display_mesh_pointset(m, points):
                              mode='markers',
                              marker_size=3,
                              line=dict(color='rgb(125,0,0)', width=1),
-                             hoverinfo='text', text=list(range(len(points))),
+                             # hoverinfo='text', text=list(range(len(points))),
                              name="pointset")
 
     mesh_data = [wireframe, point_set]

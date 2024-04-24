@@ -1,5 +1,5 @@
 import numpy as np
-from medial_axis_processing.medial_axis import MedialAxis
+from commons.medial_axis import MedialAxis
 
 
 def smooth_rbf(medial_axis: MedialAxis):
