@@ -2,7 +2,7 @@ import numpy as np
 import trimesh
 from scipy.spatial import KDTree
 from pygel3d import *
-from commons.utils import flatten, trimesh_to_manifold
+from commons.utils import flatten, trimesh_to_manifold, project_points_to_curve, barycentric_project
 
 
 class MedialAxis:
@@ -34,6 +34,10 @@ class MedialAxis:
         self.sheet_correspondences: list[list[int]] = [[] for _ in range(len(self.sheet.vertices()))]
         self.__map_sheet_correspondences()
 
+        # Compute projections
+        self.inner_projections = np.zeros(self.outer_points.shape)
+        self.__compute_projections()
+
         # Compute average radial basis function
         self.rbf = np.zeros(self.inner_points.shape[0])
         self.diffs = np.zeros(self.outer_points.shape)
@@ -61,10 +65,10 @@ class MedialAxis:
     def __radial_basis_function(self):
         for i in range(len(self.inner_points)):
             corr = self.correspondences[i]
-            inner_pos = self.inner_points[i]
+            inner_projections = self.inner_projections[corr]
             outer_pos = self.outer_points[corr]
 
-            diffs = outer_pos - inner_pos
+            diffs = outer_pos - inner_projections
             lens = np.linalg.norm(diffs, axis=1)
 
             # weights = 1 / (lens + 1e-8)
@@ -77,3 +81,18 @@ class MedialAxis:
 
             self.rbf[i] = avg_len
             self.diffs[corr] = norm_diffs
+
+    def __compute_projections(self):
+        outer_sheet = flatten(self.correspondences[~self.curve_indices])
+        outer_sheet_pos = self.outer_points[outer_sheet]
+        face_ids, barycentrics, projected = barycentric_project(self.sheet, outer_sheet_pos)
+        self.inner_projections[outer_sheet] = projected
+
+        for curve in self.curves:
+            curve_pos = self.inner_points[curve]
+
+            outer_curve = flatten(self.correspondences[curve])
+            outer_curve_pos = self.outer_points[outer_curve]
+
+            closest_segment, t_values, projected = project_points_to_curve(outer_curve_pos, curve_pos)
+            self.inner_projections[outer_curve] = projected

@@ -20,8 +20,8 @@ def simple_smooth(medial_axis: MedialAxis):
 def __apply_rbf(medial_axis: MedialAxis):
     for i in range(len(medial_axis.inner_points)):
         corr = medial_axis.correspondences[i]
-        inner_pos = medial_axis.inner_points[i]
+        inner_projs = medial_axis.inner_projections[corr]
 
-        medial_axis.outer_points[corr] = inner_pos + (medial_axis.diffs[corr] * medial_axis.rbf[i])
+        medial_axis.outer_points[corr] = inner_projs + (medial_axis.diffs[corr] * medial_axis.rbf[i])
 
     medial_axis.surface.positions()[:] = medial_axis.outer_points

@@ -69,12 +69,49 @@ def trimesh_to_manifold(trim: trimesh.Trimesh) -> hmesh.Manifold:
 def barycentric_project(m: hmesh.Manifold, points: np.ndarray):
     trim = manifold_to_trimesh(m)
     prox_query = trimesh.proximity.ProximityQuery(trim)
-    _, _, face_ids = prox_query.on_surface(points)
+    projected_points, _, face_ids = prox_query.on_surface(points)
 
     triangles = trim.triangles[face_ids]
-    barycentrics = trimesh.triangles.points_to_barycentric(triangles, points)
+    barycentrics = trimesh.triangles.points_to_barycentric(triangles, projected_points)
 
-    return face_ids, barycentrics
+    return face_ids, barycentrics, projected_points
+
+
+def project_points_to_curve(points, curve):
+    curve = np.array(curve)
+    points = np.array(points)
+
+    # Prepare curve segments
+    A = curve[:-1]  # Starting points of each segment
+    B = curve[1:]   # Ending points of each segment
+
+    # Vector from all starts to ends of segments (AB) and from all starts to each point (AP)
+    AB = B - A
+    A_expanded = A[np.newaxis, :, :]  # Broadcasting A over points
+    AB_expanded = AB[np.newaxis, :, :]  # Broadcasting AB over points
+
+    # Calculate AP for each point against each segment start
+    AP = points[:, np.newaxis, :] - A_expanded
+
+    # Calculate projection parameters
+    AB_squared = np.sum(AB_expanded**2, axis=2)
+    AP_dot_AB = np.einsum('ijk,ijk->ij', AP, AB_expanded)
+    t = AP_dot_AB / AB_squared
+
+    # Ensure t is within [0, 1] to stay within segment bounds
+    t = np.clip(t, 0, 1)
+
+    # Calculate distances from each point to these closest points
+    distances = np.linalg.norm(AP - t[:, :, np.newaxis] * AB_expanded, axis=2)
+
+    # Identify the closest segment for each point
+    closest_segment_indices = np.argmin(distances, axis=1)
+    t_values = t[np.arange(len(points)), closest_segment_indices]
+
+    # Compute the actual closest points based on t_values and closest segments
+    projected_points = A[closest_segment_indices] + t_values[:, np.newaxis] * (B[closest_segment_indices] - A[closest_segment_indices])
+
+    return closest_segment_indices, t_values, projected_points
 
 
 def flatten(xss):
@@ -128,12 +165,12 @@ def find_minimum_gamma(mesh, inner_points, start, step):
 
 def __build_opposite_dict(nested_lists):
     opposite_dict = {}
-    for outer_index, inner_list in enumerate(nested_lists):
-        for element in inner_list:
+    for inner_index, outer_list in enumerate(nested_lists):
+        for element in outer_list:
             if element in opposite_dict:
-                opposite_dict[element].append(outer_index)
+                opposite_dict[element].append(inner_index)
             else:
-                opposite_dict[element] = [outer_index]
+                opposite_dict[element] = [inner_index]
     return opposite_dict
 
 

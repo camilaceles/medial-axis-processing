@@ -251,3 +251,56 @@ def display_correspondences(outer_points, inner_points, correspondences):
         width=850, height=1200
     )
     fig.show()
+
+
+def display_inner_projections(ma: MedialAxis):
+    inner = go.Scatter3d(x=ma.inner_projections[:, 0],
+                         y=ma.inner_projections[:, 1],
+                         z=ma.inner_projections[:, 2],
+                         mode='markers',
+                         marker_size=1,
+                         line=dict(color='rgb(0,0,125)', width=1),
+                         name="inner")
+    outer = go.Scatter3d(x=ma.outer_points[:, 0],
+                         y=ma.outer_points[:, 1],
+                         z=ma.outer_points[:, 2],
+                         mode='markers',
+                         marker_size=1,
+                         line=dict(color='rgb(0,125,0)', width=1),
+                         name="outer")
+
+    curve = go.Scatter3d(x=ma.inner_points[ma.curve_indices, 0],
+                         y=ma.inner_points[ma.curve_indices, 1],
+                         z=ma.inner_points[ma.curve_indices, 2],
+                         mode='markers',
+                         marker_size=3,
+                         line=dict(color='rgb(200,0,0)', width=1),
+                         name="outer")
+
+    connections = []
+    for i, q in enumerate(ma.inner_projections):
+        connections.append(q)
+        connections.append(ma.outer_points[i])
+        connections.append(array([None, None, None]))
+    connections = array(connections)
+
+    connecting_lines = go.Scatter3d(x=connections[:, 0],
+                                    y=connections[:, 1],
+                                    z=connections[:, 2],
+                                    mode='lines',
+                                    line=dict(color='black', width=1),
+                                    hoverinfo='none',
+                                    name="connections")
+    mesh_data = [inner, outer, connecting_lines, curve]
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            aspectmode="data",
+            camera=camera
+        ),
+        width=850, height=1200
+    )
+    fig.show()
