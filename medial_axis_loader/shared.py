@@ -85,6 +85,7 @@ def to_medial_curves(vertices, edges, faces):
 
 def to_medial_sheet(vertices, faces):
     trim = trimesh.Trimesh(vertices, faces)
+    return trimesh_to_manifold(trim)
 
     connected_components = list(trim.split(only_watertight=False))
     connected_components.sort(key=lambda x: -len(x.faces))

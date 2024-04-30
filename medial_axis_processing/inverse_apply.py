@@ -63,6 +63,7 @@ def __inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
 
     ma.sheet.positions()[:] = updated_sheet_positions
     ma.inner_points[~ma.curve_indices] = updated_sheet_positions[ma.inner_indices[~ma.curve_indices]]
+    ma.graph.positions()[~ma.curve_indices] = updated_sheet_positions[ma.inner_indices[~ma.curve_indices]]
     ma.outer_points = new_outer_pos
 
 
@@ -76,7 +77,6 @@ def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, out
     for i in range(len(old_curve_pos)):
         axis = np.cross(orig_tangents[i], new_tangents[i])
         axis_length = np.linalg.norm(axis)
-        # if axis_length > 1e-6:  # To avoid division by zero in case of parallel vectors
         axis /= axis_length
         angle = np.arccos(np.clip(np.dot(orig_tangents[i], new_tangents[i]), -1.0, 1.0))
         rotation = R.from_rotvec(axis * angle)
@@ -84,24 +84,7 @@ def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, out
             rotation.apply(point - old_curve_pos[i]) + new_curve_pos[i]
             for point in outer_points[i]
         ]
-        # else:
-        #
-        #     print("nope!!")
-        #     displacement = new_curve_pos[i] - old_curve_pos[i]
-        #     new_outer_points = [
-        #         point + displacement
-        #         for point in outer_points[i]
-        #     ]
         new_outer_points_list.append(new_outer_points)
-
-        x = np.array([-0.7358, -1.4256, -0.124426])
-        close_positions = np.isclose(new_outer_points, x, atol=1e-4)
-        all_close = np.all(close_positions, axis=1)
-        close_indices = np.where(all_close)[0]
-        if np.any(all_close):
-            print("AAAAAAAAAAAA")
-            print(i, old_curve_pos[i], new_curve_pos[i], close_indices)
-
 
     return new_outer_points_list
 
@@ -128,6 +111,7 @@ def apply_inverse_medial_axis_transform(
             outer_points
         )
         medial_axis.inner_points[curve] = updated_curve_positions[i]
+        medial_axis.graph.positions()[curve] = updated_curve_positions[i]
         for j, indices in enumerate(outer_points_indices):
             if len(indices) == 0:
                 continue

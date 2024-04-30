@@ -39,6 +39,12 @@ class MedialAxis:
         self.diffs = np.zeros(self.outer_points.shape)
         self.__radial_basis_function()
 
+    def update_correspondences(self, correspondences: list[list[int]]):
+        self.correspondences = correspondences
+        self.sheet_correspondences = [[] for _ in range(len(self.sheet.vertices()))]
+        self.__map_sheet_correspondences()
+        self.__radial_basis_function()
+
     def __map_sheet_correspondences(self):
         # for each point in medial sheet, store corresponding outer points
         sheet_pos = self.sheet.positions()

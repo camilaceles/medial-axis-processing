@@ -48,7 +48,7 @@ def display_mesh_pointset(m, points):
                              mode='markers',
                              marker_size=3,
                              line=dict(color='rgb(125,0,0)', width=1),
-                             # hoverinfo='text', text=list(range(len(points))),
+                             hoverinfo='text', text=list(range(len(points))),
                              name="pointset")
 
     mesh_data = [wireframe, point_set]
@@ -163,7 +163,7 @@ def display_uv(m, uv):
     fig.show()
 
 
-def display_graph(g):
+def display_graph(g, show_points=False):
     pos = g.positions()
     xyze = []
     for v in g.nodes():
@@ -179,15 +179,17 @@ def display_graph(g):
                           mode='lines',
                           line=dict(color='rgb(0,0,0)', width=1), hoverinfo='none')
 
-    point_set = go.Scatter3d(x=pos[:, 0],
-                             y=pos[:, 1],
-                             z=pos[:, 2],
-                             mode='markers',
-                             marker_size=3,
-                             line=dict(color='rgb(125,0,0)', width=1),
-                             name="pointset",
-                             text=list(range(len(g.nodes()))), hoverinfo='text')
-    mesh_data = [trace1, point_set]
+    mesh_data = [trace1]
+    if show_points:
+        point_set = go.Scatter3d(x=pos[:, 0],
+                                 y=pos[:, 1],
+                                 z=pos[:, 2],
+                                 mode='markers',
+                                 marker_size=3,
+                                 line=dict(color='rgb(125,0,0)', width=1),
+                                 name="pointset",
+                                 text=list(range(len(g.nodes()))), hoverinfo='text')
+        mesh_data += [point_set]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
