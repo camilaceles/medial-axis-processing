@@ -78,9 +78,6 @@ def barycentric_project(m: hmesh.Manifold, points: np.ndarray):
 
 
 def project_points_to_curve(points, curve):
-    curve = np.array(curve)
-    points = np.array(points)
-
     # Prepare curve segments
     A = curve[:-1]  # Starting points of each segment
     B = curve[1:]   # Ending points of each segment

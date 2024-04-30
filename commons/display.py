@@ -26,7 +26,7 @@ def __wireframe_plot_data(m):
     xyze = array(xyze)
     wireframe = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
                              mode='lines',
-                             line=dict(color='rgb(0,0,0)', width=1),
+                             line=dict(color='rgb(75,75,75)', width=1),
                              hoverinfo='none',
                              name="wireframe")
     return wireframe
@@ -254,13 +254,13 @@ def display_correspondences(outer_points, inner_points, correspondences):
 
 
 def display_inner_projections(ma: MedialAxis):
-    inner = go.Scatter3d(x=ma.inner_projections[:, 0],
+    proj = go.Scatter3d(x=ma.inner_projections[:, 0],
                          y=ma.inner_projections[:, 1],
                          z=ma.inner_projections[:, 2],
                          mode='markers',
                          marker_size=1,
                          line=dict(color='rgb(0,0,125)', width=1),
-                         name="inner")
+                         name="projection")
     outer = go.Scatter3d(x=ma.outer_points[:, 0],
                          y=ma.outer_points[:, 1],
                          z=ma.outer_points[:, 2],
@@ -269,13 +269,13 @@ def display_inner_projections(ma: MedialAxis):
                          line=dict(color='rgb(0,125,0)', width=1),
                          name="outer")
 
-    curve = go.Scatter3d(x=ma.inner_points[ma.curve_indices, 0],
-                         y=ma.inner_points[ma.curve_indices, 1],
-                         z=ma.inner_points[ma.curve_indices, 2],
+    inner = go.Scatter3d(x=ma.inner_points[:, 0],
+                         y=ma.inner_points[:, 1],
+                         z=ma.inner_points[:, 2],
                          mode='markers',
                          marker_size=3,
-                         line=dict(color='rgb(200,0,0)', width=1),
-                         name="outer")
+                         line=dict(color='rgb(125,0,0)', width=1),
+                         name="inner")
 
     connections = []
     for i, q in enumerate(ma.inner_projections):
@@ -291,7 +291,7 @@ def display_inner_projections(ma: MedialAxis):
                                     line=dict(color='black', width=1),
                                     hoverinfo='none',
                                     name="connections")
-    mesh_data = [inner, outer, connecting_lines, curve]
+    mesh_data = [proj, outer, connecting_lines, inner]
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
         scene=dict(
@@ -304,3 +304,49 @@ def display_inner_projections(ma: MedialAxis):
         width=850, height=1200
     )
     fig.show()
+
+
+def display_mesh_difference(mesh1, mesh2):
+    wireframe1 = __wireframe_plot_data(mesh1)
+    # points1 = go.Scatter3d(x=mesh1.positions()[:, 0],
+    #                          y=mesh1.positions()[:, 1],
+    #                          z=mesh1.positions()[:, 2],
+    #                          mode='markers',
+    #                          marker_size=2,
+    #                          line=dict(color='rgb(0,0,125)', width=1),
+    #                          name="mesh1")
+    points2 = go.Scatter3d(x=mesh2.positions()[:, 0],
+                             y=mesh2.positions()[:, 1],
+                             z=mesh2.positions()[:, 2],
+                             mode='markers',
+                             marker_size=2,
+                             line=dict(color='rgb(125,0,0)', width=1),
+                             name="mesh2")
+    connections = []
+    for i, q in enumerate(mesh1.positions()):
+        connections.append(q)
+        connections.append(mesh2.positions()[i])
+        connections.append(array([None, None, None]))
+    connections = array(connections)
+
+    connecting_lines = go.Scatter3d(x=connections[:, 0],
+                                    y=connections[:, 1],
+                                    z=connections[:, 2],
+                                    mode='lines',
+                                    line=dict(color='blue', width=3),
+                                    hoverinfo='none',
+                                    name="difference")
+    mesh_data = [wireframe1, points2, connecting_lines]
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            aspectmode="data",
+            camera=camera
+        ),
+        width=850, height=1200
+    )
+    fig.show()
+

@@ -36,18 +36,20 @@ class MedialAxis:
 
         # Compute projections
         self.inner_projections = np.zeros(self.outer_points.shape)
+        self.inner_barycentrics = np.zeros((self.outer_points.shape[0], 4))
+        self.inner_ts = np.zeros((self.outer_points.shape[0], 3))
         self.__compute_projections()
 
         # Compute average radial basis function
         self.rbf = np.zeros(self.inner_points.shape[0])
         self.diffs = np.zeros(self.outer_points.shape)
-        self.__radial_basis_function()
+        self.update_radial_basis_function()
 
     def update_correspondences(self, correspondences: list[list[int]]):
         self.correspondences = correspondences
         self.sheet_correspondences = [[] for _ in range(len(self.sheet.vertices()))]
         self.__map_sheet_correspondences()
-        self.__radial_basis_function()
+        self.update_radial_basis_function()
 
     def __map_sheet_correspondences(self):
         # for each point in medial sheet, store corresponding outer points
@@ -62,7 +64,7 @@ class MedialAxis:
                 for p in outer_points:
                     self.sheet_correspondences[sheet_inner_indices[inner_idx]].append(p)
 
-    def __radial_basis_function(self):
+    def update_radial_basis_function(self):
         for i in range(len(self.inner_points)):
             corr = self.correspondences[i]
             inner_projections = self.inner_projections[corr]
@@ -83,12 +85,17 @@ class MedialAxis:
             self.diffs[corr] = norm_diffs
 
     def __compute_projections(self):
+        # Project relevant outer points to medial sheet
         outer_sheet = flatten(self.correspondences[~self.curve_indices])
         outer_sheet_pos = self.outer_points[outer_sheet]
         face_ids, barycentrics, projected = barycentric_project(self.sheet, outer_sheet_pos)
         self.inner_projections[outer_sheet] = projected
+        self.inner_barycentrics[outer_sheet, 0] = face_ids
+        self.inner_barycentrics[outer_sheet, 1:] = barycentrics
 
+        # Project relevant outer points to medial curves
         for curve in self.curves:
+            curve = np.array(curve)
             curve_pos = self.inner_points[curve]
 
             outer_curve = flatten(self.correspondences[curve])
@@ -96,3 +103,6 @@ class MedialAxis:
 
             closest_segment, t_values, projected = project_points_to_curve(outer_curve_pos, curve_pos)
             self.inner_projections[outer_curve] = projected
+            self.inner_ts[outer_curve, 0] = curve[closest_segment]
+            self.inner_ts[outer_curve, 1] = curve[closest_segment+1]
+            self.inner_ts[outer_curve, 2] = t_values
