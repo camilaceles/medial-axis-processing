@@ -27,7 +27,8 @@ class MedialAxis:
         self.curve_indices[list(set(flatten(self.curves)))] = True
 
         # Store the indices of corresponding inner points in the medial sheet
-        self.inner_indices: np.ndarray = np.zeros(self.inner_points.shape[0], dtype=int)
+        self.inner_to_sheet_index: np.ndarray = np.zeros(self.inner_points.shape[0], dtype=int)
+        self.sheet_to_inner_index: np.ndarray = np.zeros(len(self.sheet.vertices()), dtype=int)
 
         # Store list of surface points corresponding to each sheet point
         self.correspondences = correspondences
@@ -52,17 +53,29 @@ class MedialAxis:
         self.update_radial_basis_function()
 
     def __map_sheet_correspondences(self):
-        # for each point in medial sheet, store corresponding outer points
         sheet_pos = self.sheet.positions()
 
+        # map each sheet point to corresponding inner points
+        kd_tree = KDTree(self.inner_points)
+        _, inner_sheet_indices = kd_tree.query(sheet_pos)
+        self.sheet_to_inner_index = inner_sheet_indices
+
+        # for each point in medial sheet, store corresponding outer points
         kd_tree = KDTree(sheet_pos)
         _, sheet_inner_indices = kd_tree.query(self.inner_points)
-        self.inner_indices = sheet_inner_indices
+        self.inner_to_sheet_index = sheet_inner_indices
 
         for inner_idx, outer_points in enumerate(self.correspondences):
             if not self.curve_indices[inner_idx]:
                 for p in outer_points:
                     self.sheet_correspondences[sheet_inner_indices[inner_idx]].append(p)
+
+        # # also add outer curve points to connection sheet correspondence
+        # for curve in self.curves:
+        #     connection = curve[0]
+        #     for inner in curve:
+        #         for p in self.correspondences[inner]:
+        #             self.sheet_correspondences[sheet_inner_indices[connection]].append(p)
 
     def update_radial_basis_function(self):
         for i in range(len(self.inner_points)):

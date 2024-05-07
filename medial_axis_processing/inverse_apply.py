@@ -33,7 +33,7 @@ def __compute_tangents(curve):
     return tangents
 
 
-def __inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
+def inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
     """Applies the transformation of the medial sheet onto corresponding inner and outer points.
        Does this by projecting the points to the local basis of the medial sheet vertex, and then updating the point"""
     positions = ma.sheet.positions()
@@ -41,30 +41,56 @@ def __inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
     updated_sheet = hmesh.Manifold(ma.sheet)
     updated_sheet.positions()[:] = updated_sheet_positions
 
+    new_inner_pos = np.copy(ma.inner_points)
     new_outer_pos = np.copy(ma.outer_points)
 
     for vid in ma.sheet.vertices():
         neighbor = ma.sheet.circulate_vertex(vid)[0]
 
-        for outer_idx in ma.sheet_correspondences[vid]:
+        n_old = ma.sheet.vertex_normal(vid)
+        basis_old = __get_local_basis(positions[vid], positions[neighbor], n_old)
+
+        n_new = updated_sheet.vertex_normal(vid)
+        basis_new = __get_local_basis(updated_sheet_positions[vid], updated_sheet_positions[neighbor], n_new)
+
+        corresponding_outer = ma.sheet_correspondences[vid]
+
+        # if vertex is curve connection, also update curve inner and outer points
+        # this ensures the connecting curve points are aligned with the updated sheet
+        inner = ma.sheet_to_inner_index[vid]
+        if ma.curve_indices[inner]:
+            # find associated curve
+            curve_index = next((i for i, curve in enumerate(ma.curves) if curve and curve[0] == inner), -1)
+            curve = ma.curves[curve_index]
+
+            # map transformation to curve inner points
+            for inner_idx in curve:
+                inner_point = ma.inner_points[inner_idx]
+
+                local_coords = __project_point_to_basis(inner_point, positions[vid], basis_old)
+                new_pos = __update_point(updated_sheet_positions[vid], local_coords, basis_new)
+                new_inner_pos[inner_idx] = new_pos
+
+                # also add curve outer points to be updated
+                corresponding_outer.extend(ma.correspondences[inner_idx])
+
+        # map transformation to outer points
+        for outer_idx in corresponding_outer:
             outer_point = ma.outer_points[outer_idx]
-
-            n_old = ma.sheet.vertex_normal(vid)
-            # diff = outer_point - positions[vid]
-            # angle = np.arccos(np.dot(diff, n_old) / np.linalg.norm(diff))
-            basis_old = __get_local_basis(positions[vid], positions[neighbor], n_old)
-
-            n_new = updated_sheet.vertex_normal(vid)
-            basis_new = __get_local_basis(updated_sheet_positions[vid], updated_sheet_positions[neighbor], n_new)
 
             local_coords = __project_point_to_basis(outer_point, positions[vid], basis_old)
             new_pos = __update_point(updated_sheet_positions[vid], local_coords, basis_new)
             new_outer_pos[outer_idx] = new_pos
 
+    # update medial axis object with new positions
     ma.sheet.positions()[:] = updated_sheet_positions
-    ma.inner_points[~ma.curve_indices] = updated_sheet_positions[ma.inner_indices[~ma.curve_indices]]
-    ma.graph.positions()[~ma.curve_indices] = updated_sheet_positions[ma.inner_indices[~ma.curve_indices]]
     ma.outer_points = new_outer_pos
+    ma.inner_points = new_inner_pos
+
+    ma.inner_points[~ma.curve_indices] = updated_sheet_positions[ma.inner_to_sheet_index[~ma.curve_indices]]
+    ma.graph.positions()[~ma.curve_indices] = updated_sheet_positions[ma.inner_to_sheet_index[~ma.curve_indices]]
+
+    ma.surface.positions()[:] = ma.outer_points
 
 
 def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, outer_points: list[np.ndarray]):
@@ -89,14 +115,7 @@ def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, out
     return new_outer_points_list
 
 
-def apply_inverse_medial_axis_transform(
-        medial_axis: MedialAxis,
-        updated_sheet_positions: np.ndarray,
-        updated_curve_positions: list[np.ndarray]
-):
-    __inverse_apply_sheet(medial_axis, updated_sheet_positions)
-    medial_axis.surface.positions()[:] = medial_axis.outer_points
-
+def inverse_apply_curves(medial_axis: MedialAxis, updated_curve_positions: list[np.ndarray]):
     for i, curve in enumerate(medial_axis.curves):
         inner_points = medial_axis.inner_points[curve]
         outer_points_indices = medial_axis.correspondences[curve]
@@ -117,3 +136,12 @@ def apply_inverse_medial_axis_transform(
                 continue
             medial_axis.outer_points[indices] = new_outer_points[j]
             medial_axis.surface.positions()[indices] = new_outer_points[j]
+
+
+def inverse_apply_medial_axis(
+        medial_axis: MedialAxis,
+        updated_sheet_positions: np.ndarray,
+        updated_curve_positions: list[np.ndarray]
+):
+    inverse_apply_sheet(medial_axis, updated_sheet_positions)
+    inverse_apply_curves(medial_axis, updated_curve_positions)

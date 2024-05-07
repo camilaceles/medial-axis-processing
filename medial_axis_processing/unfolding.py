@@ -70,18 +70,19 @@ def get_unfolded_sheet_positions(ma: MedialAxis) -> np.ndarray:
 
 def get_unfolded_curve_positions(
         ma: MedialAxis,
-        original_medial_sheet: np.ndarray,
-        unfolded_medial_sheet: np.ndarray
+        # original_medial_sheet: np.ndarray,
+        # unfolded_medial_sheet: np.ndarray
 ) -> list[np.ndarray]:
     unfolded_curve_positions = []
     for curve in ma.curves:
-        medial_connection = ma.inner_indices[curve[0]]
-        old_connection_pos = original_medial_sheet[medial_connection]
-        new_connection_pos = unfolded_medial_sheet[medial_connection]
+        # medial_connection = ma.inner_to_sheet_index[curve[0]]
+        # old_connection_pos = original_medial_sheet[medial_connection]
+        # new_connection_pos = unfolded_medial_sheet[medial_connection]
 
         new_curve_pos = np.copy(ma.inner_points[curve])
-        new_curve_pos += new_connection_pos - old_connection_pos
+        # new_curve_pos += new_connection_pos - old_connection_pos
         new_curve_pos[:, 2] = 0  # project to z=0 plane
         unfolded_curve_positions.append(new_curve_pos)
 
     return unfolded_curve_positions
+

@@ -4,6 +4,7 @@ from pygel3d import hmesh
 from commons.medial_axis import MedialAxis
 from commons.utils import trimesh_to_manifold, build_ball_correspondences
 from medial_axis_loader import shared
+from medial_axis_loader.shared import to_graph
 
 
 def __read_qmat(filename: str) -> tuple[np.ndarray, list[list[int]], list[list[int]]]:
@@ -35,11 +36,12 @@ def load(
 ) -> MedialAxis:
     """Loads MedialAxis object from a file outputted by Q-MAT."""
     vertices, edges, faces = __read_qmat(filename)
+    graph = to_graph(vertices, edges)
 
     medial_sheet = shared.to_medial_sheet(vertices, faces)
     medial_sheet = shared.fix_normals(medial_sheet)
 
-    medial_curves, graph = shared.to_medial_curves(vertices, edges, faces)
+    medial_curves = shared.to_medial_curves(vertices, edges, faces)
 
     correspondences = build_ball_correspondences(input_mesh, vertices, start=start, step=step)
 

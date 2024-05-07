@@ -4,11 +4,16 @@ from numpy import array
 import numpy as np
 from commons.medial_axis import MedialAxis
 
-camera = dict(
+hand_camera = dict(
     up=dict(x=0, y=-1, z=0),
     center=dict(x=0, y=0, z=0),
-    eye=dict(x=0, y=0, z=3)
+    eye=dict(x=0, y=0, z=2.0)
 )
+hand_width, hand_height = 800, 800
+
+
+camera = hand_camera
+width, height = hand_width, hand_height
 
 
 def __wireframe_plot_data(m):
@@ -52,11 +57,10 @@ def display_mesh_pointset(m, points):
                              name="pointset")
 
     mesh_data = [wireframe, point_set]
-    lyt = go.Layout(width=850, height=800)
-    lyt.scene.aspectmode = "data"
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
@@ -64,12 +68,12 @@ def display_mesh_pointset(m, points):
             aspectmode="data",
             camera=camera
         ),
-        width=850, height=1200
+        width=width, height=height
     )
     fig.show()
 
 
-def display_medial_axis(ma: MedialAxis):
+def display_medial_axis(ma: MedialAxis, save_path=None):
     wireframe = __wireframe_plot_data(ma.sheet)
     inner = go.Scatter3d(x=ma.inner_points[:, 0],
                          y=ma.inner_points[:, 1],
@@ -103,6 +107,7 @@ def display_medial_axis(ma: MedialAxis):
     mesh_data = [inner, outer, wireframe, connecting_lines]
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
@@ -110,12 +115,61 @@ def display_medial_axis(ma: MedialAxis):
             aspectmode="data",
             camera=camera
         ),
-        width=850, height=1200
+        width=width, height=height
+    )
+    if save_path is not None:
+        fig.write_image(save_path + ".png")
+    fig.show()
+
+
+def display_sheet_connections(ma: MedialAxis):
+    inner = go.Scatter3d(x=ma.sheet.positions()[:, 0],
+                         y=ma.sheet.positions()[:, 1],
+                         z=ma.sheet.positions()[:, 2],
+                         mode='markers',
+                         marker_size=3,
+                         line=dict(color='rgb(0,0,125)', width=1),
+                         name="inner")
+
+    outer = go.Scatter3d(x=ma.outer_points[:, 0],
+                         y=ma.outer_points[:, 1],
+                         z=ma.outer_points[:, 2],
+                         mode='markers',
+                         marker_size=3,
+                         line=dict(color='rgb(0,125,0)', width=1),
+                         name="outer")
+    connections = []
+    for i, vid in enumerate(ma.sheet.vertices()):
+        for p in ma.sheet_correspondences[vid]:
+            connections.append(ma.sheet.positions()[vid])
+            connections.append(ma.outer_points[p])
+            connections.append(array([None, None, None]))
+    connections = array(connections)
+
+    connecting_lines = go.Scatter3d(x=connections[:, 0],
+                                    y=connections[:, 1],
+                                    z=connections[:, 2],
+                                    mode='lines',
+                                    line=dict(color='black', width=1),
+                                    hoverinfo='none',
+                                    name="connections")
+    mesh_data = [inner, outer, connecting_lines]
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            aspectmode="data",
+            camera=camera
+        ),
+        width=width, height=height
     )
     fig.show()
 
 
-def display_mesh(m, wireframe=True, smooth=True, color='#dddddd'):
+def display_mesh(m, wireframe=True, smooth=True, color='#dddddd', save_path=None):
     xyz = array([p for p in m.positions()])
     m_tri = hmesh.Manifold(m)
     hmesh.triangulate(m_tri)
@@ -130,6 +184,7 @@ def display_mesh(m, wireframe=True, smooth=True, color='#dddddd'):
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
@@ -137,9 +192,11 @@ def display_mesh(m, wireframe=True, smooth=True, color='#dddddd'):
             aspectmode="data",
             camera=camera
         ),
-        width=850, height=1200
+        width=width, height=height,
+        showlegend=False
     )
-
+    if save_path is not None:
+        fig.write_image(save_path + ".png")
     fig.show()
 
 
@@ -151,19 +208,20 @@ def display_uv(m, uv):
                   opacity=0.50)])
 
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
             zaxis=dict(visible=False),
             aspectmode="data"
         ),
-        width=850, height=1200
+        width=width, height=height
     )
 
     fig.show()
 
 
-def display_graph(g, show_points=False):
+def display_graph(g, show_points=False, save_path=None):
     pos = g.positions()
     xyze = []
     for v in g.nodes():
@@ -187,12 +245,12 @@ def display_graph(g, show_points=False):
                                  mode='markers',
                                  marker_size=3,
                                  line=dict(color='rgb(125,0,0)', width=1),
-                                 name="pointset",
                                  text=list(range(len(g.nodes()))), hoverinfo='text')
         mesh_data += [point_set]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             aspectmode="data",
             camera=camera,
@@ -200,8 +258,11 @@ def display_graph(g, show_points=False):
             yaxis=dict(visible=False),
             zaxis=dict(visible=False),
         ),
-        width=850, height=1200
+        width=width, height=height,
+        showlegend=False
     )
+    if save_path is not None:
+        fig.write_image(save_path + ".png")
 
     fig.show()
 
@@ -242,13 +303,14 @@ def display_correspondences(outer_points, inner_points, correspondences):
 
     fig = go.Figure(data=[outer, inner, connecting_lines])
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
             zaxis=dict(visible=False),
             aspectmode="data"
         ),
-        width=850, height=1200
+        width=width, height=height
     )
     fig.show()
 
@@ -274,7 +336,7 @@ def display_inner_projections(ma: MedialAxis):
                          z=ma.inner_points[:, 2],
                          mode='markers',
                          marker_size=3,
-                         line=dict(color='rgb(125,0,0)', width=1),
+                         line=dict(color='rgb(255,0,0)', width=1),
                          name="inner")
 
     connections = []
@@ -294,6 +356,7 @@ def display_inner_projections(ma: MedialAxis):
     mesh_data = [proj, outer, connecting_lines, inner]
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
@@ -301,7 +364,7 @@ def display_inner_projections(ma: MedialAxis):
             aspectmode="data",
             camera=camera
         ),
-        width=850, height=1200
+        width=width, height=height
     )
     fig.show()
 
@@ -339,6 +402,7 @@ def display_mesh_difference(mesh1, mesh2):
     mesh_data = [wireframe1, points2, connecting_lines]
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
         scene=dict(
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
@@ -346,7 +410,7 @@ def display_mesh_difference(mesh1, mesh2):
             aspectmode="data",
             camera=camera
         ),
-        width=850, height=1200
+        width=width, height=height
     )
     fig.show()
 

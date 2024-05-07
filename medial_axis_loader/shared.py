@@ -16,6 +16,18 @@ def __precompute_face_adjacencies(mesh):
     return adjacency_dict
 
 
+def __remove_edges_in_faces(edges, faces):
+    edges_from_faces = set()
+    for face in faces:
+        num_vertices = len(face)
+        for i in range(num_vertices):
+            edge = (face[i], face[(i + 1) % num_vertices])
+            edges_from_faces.add(frozenset(edge))
+
+    filtered_edges = [edge for edge in edges if frozenset(edge) not in edges_from_faces]
+    return filtered_edges
+
+
 def fix_normals(m: hmesh.Manifold) -> hmesh.Manifold:
     mesh = manifold_to_trimesh(m, process=True)
 
@@ -44,15 +56,24 @@ def fix_normals(m: hmesh.Manifold) -> hmesh.Manifold:
     return trimesh_to_manifold(mesh)
 
 
-def to_medial_curves(vertices, edges, faces):
-    sheet_vertices = set(flatten(faces))
-
+def to_graph(vertices, edges):
     g = graph.Graph()
     for v in vertices:
         g.add_node(v)
     for (v1, v2) in edges:
         g.connect_nodes(v1, v2)
-    g2 = graph.Graph(g)
+    return g
+
+
+def to_medial_curves(vertices, edges, faces):
+    sheet_vertices = set(flatten(faces))
+    curve_edges = __remove_edges_in_faces(edges, faces)
+
+    g = graph.Graph()
+    for v in vertices:
+        g.add_node(v)
+    for (v1, v2) in curve_edges:
+        g.connect_nodes(v1, v2)
 
     visited = set()
 
@@ -80,18 +101,12 @@ def to_medial_curves(vertices, edges, faces):
             curves[i] = curve[::-1]
 
     curves.sort(key=lambda s: -len(s))  # Sort curves by length
-    return curves, g2
+    return curves
 
 
 def to_medial_sheet(vertices, faces):
     trim = trimesh.Trimesh(vertices, faces)
     return trimesh_to_manifold(trim)
-
-    connected_components = list(trim.split(only_watertight=False))
-    connected_components.sort(key=lambda x: -len(x.faces))
-    to_keep = connected_components[0]
-
-    return trimesh_to_manifold(to_keep)
 
     # connected_components = list(trim.split(only_watertight=False))
     # connected_components.sort(key=lambda x: -len(x.faces))
