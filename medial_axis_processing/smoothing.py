@@ -7,13 +7,18 @@ from commons.medial_axis import MedialAxis
 
 def smooth_rbf(medial_axis: MedialAxis):
     g = medial_axis.graph
+    pos = g.positions()
 
+    new_rbf = np.copy(medial_axis.rbf)
     for node in g.nodes():
         neighbors = g.neighbors(node)
-        lens = medial_axis.rbf[neighbors]
-        medial_axis.rbf[node] = np.mean(lens)
 
-    __apply_rbf(medial_axis)
+        distances = np.linalg.norm(pos[node] - pos[neighbors], axis=1)
+        weights = 1 / np.where(distances == 0, np.inf, distances)
+        weights /= weights.sum()
+
+        new_rbf[node] = np.dot(weights, medial_axis.rbf[neighbors])
+    medial_axis.rbf[:] = new_rbf
 
 
 def simple_smooth(medial_axis: MedialAxis):

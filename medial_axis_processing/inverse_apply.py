@@ -4,10 +4,7 @@ from commons.medial_axis import MedialAxis
 from scipy.spatial.transform import Rotation as R
 
 
-def __get_local_basis(v0, v1, n, inverse_normal=False):
-    if inverse_normal:
-        n = -n
-
+def __get_local_basis(v0, v1, n):
     b0 = v1 - v0
     b0 /= np.linalg.norm(b0)
     b1 = np.cross(n, b0)

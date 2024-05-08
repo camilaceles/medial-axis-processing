@@ -1,5 +1,7 @@
+import random
+import networkx as nx
 import trimesh
-from pygel3d import hmesh
+from pygel3d import hmesh, graph
 import numpy as np
 from scipy.spatial import KDTree
 
@@ -64,6 +66,19 @@ def manifold_to_trimesh(m: hmesh.Manifold, process=False) -> trimesh.Trimesh:
 
 def trimesh_to_manifold(trim: trimesh.Trimesh) -> hmesh.Manifold:
     return hmesh.Manifold.from_triangles(trim.vertices, trim.faces)
+
+
+def average_edge_length(m: hmesh.Manifold):
+    edge_lengths = np.array([m.edge_length(hid) for hid in m.halfedges()])
+    return np.mean(edge_lengths)
+
+
+def compute_reconstruction_error(orig: hmesh.Manifold, recon: hmesh.Manifold):
+    avg_edge_len = average_edge_length(orig)
+    pos1 = orig.positions()
+    pos2 = recon.positions()
+    lens = np.linalg.norm(pos1 - pos2, axis=1)
+    return np.mean(lens) / avg_edge_len
 
 
 def barycentric_project(m: hmesh.Manifold, points: np.ndarray):
@@ -140,7 +155,6 @@ def read_CA_MA(filename: str) -> hmesh.Manifold:
     return trimesh_to_manifold(trim)
 
 
-
 def find_minimum_gamma(mesh, inner_points, start, step):
     """Finds minimum addition to radii to cover all points in the mesh with given inner points"""
     tree = KDTree(mesh.positions())
@@ -187,6 +201,7 @@ def build_ball_correspondences(
     dist, _ = tree.query(inner_points, k=1)
     R = dist + gamma
     correspondences = tree.query_ball_point(inner_points, R)
+    # return correspondences
 
     # Ensure each outer point is only associated to one inner point
     # Choose inner point where inner-outer connection is best aligned with surface normal
@@ -217,3 +232,44 @@ def build_ball_correspondences(
                 corr.remove(outer)
 
     return correspondences
+
+
+def every_other_node(graph: graph.Graph):
+    nodes = graph.nodes()
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    for node in nodes:
+        neighbors = graph.neighbors(node)
+        for neighbor in neighbors:
+            G.add_edge(node, neighbor)
+
+    selected_nodes = set()
+    for node in sorted(G.nodes(), key=lambda x: G.degree(x), reverse=True):
+        if all(neighbor not in selected_nodes for neighbor in G.neighbors(node)):
+            selected_nodes.add(node)
+
+    return list(selected_nodes)
+
+
+def select_nodes(g: graph.Graph, target_count):
+    nodes = list(g.nodes())
+    random.shuffle(nodes)  # Shuffle to avoid bias in node order
+
+    selected_nodes = set()
+    for node in nodes:
+        if len(selected_nodes) >= target_count:
+            break
+        if all(neighbor not in selected_nodes for neighbor in g.neighbors(node)):
+            selected_nodes.add(node)
+
+    # If fewer nodes are selected than needed, adjust by adding nodes with minimal increase in adjacency conflicts
+    if len(selected_nodes) < target_count:
+        remaining_nodes = [node for node in nodes if node not in selected_nodes]
+        remaining_nodes.sort(key=lambda x: len(set(g.neighbors(x)) & selected_nodes))  # Sort by fewest conflicts
+        for node in remaining_nodes:
+            if len(selected_nodes) < target_count:
+                selected_nodes.add(node)
+            else:
+                break
+
+    return selected_nodes

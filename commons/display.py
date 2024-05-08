@@ -1,4 +1,5 @@
 import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 from pygel3d import hmesh
 from numpy import array
 import numpy as np
@@ -42,7 +43,7 @@ def __mesh_plot_data(m, color):
     ijk = array([[idx for idx in m.circulate_face(f, 'v')] for f in m.faces()])
 
     return go.Mesh3d(x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2],
-                     i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], color=color, flatshading=False, opacity=0.50)
+                     i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], color=color, flatshading=False, opacity=1.0)
 
 
 def display_mesh_pointset(m, points):
@@ -169,13 +170,8 @@ def display_sheet_connections(ma: MedialAxis):
     fig.show()
 
 
-def display_mesh(m, wireframe=True, smooth=True, color='#dddddd', save_path=None):
-    xyz = array([p for p in m.positions()])
-    m_tri = hmesh.Manifold(m)
-    hmesh.triangulate(m_tri)
-    ijk = array([[idx for idx in m_tri.circulate_face(f, 'v')] for f in m_tri.faces()])
-    mesh = go.Mesh3d(x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2],
-                     i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], color=color, flatshading=not smooth, hoverinfo='none')
+def display_mesh(m, wireframe=True, color='#dddddd', save_path=None):
+    mesh = __mesh_plot_data(m, color)
 
     mesh_data = [mesh]
     if wireframe:
@@ -195,6 +191,48 @@ def display_mesh(m, wireframe=True, smooth=True, color='#dddddd', save_path=None
         width=width, height=height,
         showlegend=False
     )
+    if save_path is not None:
+        fig.write_image(save_path + ".png")
+    fig.show()
+
+
+def display_two_meshes(m1, m2, wireframe=True, color='#dddddd', save_path=None):
+    fig = make_subplots(
+        rows=1, cols=2,
+        specs=[[{'type': 'scatter3d'}, {'type': 'scatter3d'}]],
+        horizontal_spacing=0.1
+    )
+
+    mesh_data1 = [__mesh_plot_data(m1, color)]
+    mesh_data2 = [__mesh_plot_data(m2, color)]
+    if wireframe:
+        wireframe = __wireframe_plot_data(m1)
+        mesh_data1 += [wireframe]
+        wireframe = __wireframe_plot_data(m2)
+        mesh_data2 += [wireframe]
+
+    for data in mesh_data1:
+        fig.add_trace(data, row=1, col=1)
+    for data in mesh_data2:
+        fig.add_trace(data, row=1, col=2)
+
+    for i in range(1, 3):
+        fig.update_scenes(
+            dict(
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                zaxis=dict(visible=False),
+                aspectmode="data",
+                camera=camera
+            ),
+            row=1, col=i
+        )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=False,
+        width=2*width, height=height
+    )
+
     if save_path is not None:
         fig.write_image(save_path + ".png")
     fig.show()
@@ -247,6 +285,51 @@ def display_graph(g, show_points=False, save_path=None):
                                  line=dict(color='rgb(125,0,0)', width=1),
                                  text=list(range(len(g.nodes()))), hoverinfo='text')
         mesh_data += [point_set]
+
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        scene=dict(
+            aspectmode="data",
+            camera=camera,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+        ),
+        width=width, height=height,
+        showlegend=False
+    )
+    if save_path is not None:
+        fig.write_image(save_path + ".png")
+
+    fig.show()
+
+
+def display_graph_pointset(g, pointset, save_path=None):
+    pos = g.positions()
+    xyze = []
+    for v in g.nodes():
+        for w in g.neighbors(v):
+            if v < w:
+                p0 = pos[v]
+                p1 = pos[w]
+                xyze.append(array(p0))
+                xyze.append(array(p1))
+                xyze.append(array([None, None, None]))
+    xyze = array(xyze)
+    trace1 = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
+                          mode='lines',
+                          line=dict(color='rgb(0,0,0)', width=1), hoverinfo='none')
+
+    mesh_data = [trace1]
+    point_set = go.Scatter3d(x=pointset[:, 0],
+                             y=pointset[:, 1],
+                             z=pointset[:, 2],
+                             mode='markers',
+                             marker_size=3,
+                             line=dict(color='rgb(125,0,0)', width=1),
+                             text=list(range(len(g.nodes()))), hoverinfo='text')
+    mesh_data += [point_set]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
