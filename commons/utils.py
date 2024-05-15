@@ -207,32 +207,29 @@ def build_ball_correspondences(
     # Choose inner point where inner-outer connection is best aligned with surface normal
     pos = mesh.positions()
 
-    for (outer, inners) in __build_opposite_dict(correspondences).items():
-        if len(inners) == 1:
+    opposite_dict = __build_opposite_dict(correspondences)
+
+    vertex_normals = np.array([mesh.vertex_normal(v) for v in range(len(mesh.vertices()))])
+
+    for outer, inners in opposite_dict.items():
+        if len(inners) <= 1:
             continue
-        best_inner = None
-        best_angle = np.inf
 
-        # find the inner point with the best normal alignment
-        for inner in inners:
-            # calculate normal alignment
-            outer_normal = mesh.vertex_normal(outer)
-            outer_normal /= np.linalg.norm(outer_normal)
-            corr_normal = pos[outer] - inner_points[inner]
-            corr_normal /= np.linalg.norm(corr_normal)
-            angle = np.arccos(np.clip(np.dot(outer_normal, corr_normal), -1.0, 1.0))
+        outer_normal = vertex_normals[outer]
+        inner_positions = np.array([inner_points[inner] for inner in inners])
+        corr_normals = pos[outer] - inner_positions
+        corr_normals /= np.linalg.norm(corr_normals, axis=1)[:, None]
+        angles = np.arccos(np.clip(np.dot(corr_normals, outer_normal), -1.0, 1.0))
 
-            if angle < best_angle:
-                best_angle = angle
-                best_inner = inner
+        best_inner_idx = np.argmin(angles)
+        best_inner = inners[best_inner_idx]
 
-        # remove non optimal correspondences
-        for inner, corr in enumerate(correspondences):
-            if outer in corr and inner != best_inner:
-                corr.remove(outer)
+        # Updating the correspondences to keep only the best inner point
+        for idx, inner in enumerate(inners):
+            if inner != best_inner:
+                correspondences[inner].remove(outer)
 
     return correspondences
-
 
 def every_other_node(graph: graph.Graph):
     nodes = graph.nodes()

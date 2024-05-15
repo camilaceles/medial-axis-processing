@@ -114,8 +114,13 @@ class MedialAxis:
             outer_curve = flatten(self.correspondences[curve])
             outer_curve_pos = self.outer_points[outer_curve]
 
-            closest_segment, t_values, projected = project_points_to_curve(outer_curve_pos, curve_pos)
-            self.inner_projections[outer_curve] = projected
-            self.inner_ts[outer_curve, 0] = curve[closest_segment]
-            self.inner_ts[outer_curve, 1] = curve[closest_segment+1]
-            self.inner_ts[outer_curve, 2] = t_values
+            if len(curve) < 2:
+                self.inner_ts[outer_curve, 0] = curve[0]
+                self.inner_ts[outer_curve, 1] = curve[0]
+                self.inner_ts[outer_curve, 2] = 0
+            else:
+                closest_segment, t_values, projected = project_points_to_curve(outer_curve_pos, curve_pos)
+                self.inner_projections[outer_curve] = projected
+                self.inner_ts[outer_curve, 0] = curve[closest_segment]
+                self.inner_ts[outer_curve, 1] = curve[closest_segment+1]
+                self.inner_ts[outer_curve, 2] = t_values

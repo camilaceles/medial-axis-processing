@@ -12,6 +12,13 @@ hand_camera = dict(
 )
 hand_width, hand_height = 800, 800
 
+leaf_camera = dict(
+    up=dict(x=1, y=1, z=0),
+    center=dict(x=0, y=0, z=0),
+    eye=dict(x=-1.0, y=-0.8, z=1.0)
+)
+leaf_width, leaf_height = 800, 600
+
 
 camera = hand_camera
 width, height = hand_width, hand_height
@@ -170,7 +177,7 @@ def display_sheet_connections(ma: MedialAxis):
     fig.show()
 
 
-def display_mesh(m, wireframe=True, color='#dddddd', save_path=None):
+def display_mesh(m, wireframe=True, color='#dddddd', save_path=None, save_html=None):
     mesh = __mesh_plot_data(m, color)
 
     mesh_data = [mesh]
@@ -193,6 +200,8 @@ def display_mesh(m, wireframe=True, color='#dddddd', save_path=None):
     )
     if save_path is not None:
         fig.write_image(save_path + ".png")
+    if save_html is not None:
+        fig.write_html(save_html + ".html")
     fig.show()
 
 
