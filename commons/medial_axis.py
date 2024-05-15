@@ -44,6 +44,7 @@ class MedialAxis:
         self.inner_barycentrics = np.zeros((self.outer_points.shape[0], 4))
         self.inner_ts = np.zeros((self.outer_points.shape[0], 3))
         self.__compute_projections()
+        # self.update_radial_basis_function()
 
     def update_correspondences(self, correspondences: list[list[int]]):
         self.correspondences = correspondences
@@ -69,25 +70,25 @@ class MedialAxis:
                 for p in outer_points:
                     self.sheet_correspondences[sheet_inner_indices[inner_idx]].append(p)
 
-    # def update_radial_basis_function(self):
-    #     for i in range(len(self.inner_points)):
-    #         corr = self.correspondences[i]
-    #         inner_projections = self.inner_projections[corr]
-    #         outer_pos = self.outer_points[corr]
-    #
-    #         diffs = outer_pos - inner_projections
-    #         lens = np.linalg.norm(diffs, axis=1)
-    #
-    #         # weights = 1 / (lens + 1e-8)
-    #         # weighted_avg_len = np.average(lens, weights=weights)
-    #         if len(lens) == 0:
-    #             continue
-    #
-    #         avg_len = np.mean(lens)
-    #         norm_diffs = diffs / lens[:, np.newaxis]
-    #
-    #         self.rbf[i] = avg_len
-    #         self.diffs[corr] = norm_diffs
+    def update_radial_basis_function(self):
+        for i in range(len(self.inner_points)):
+            corr = self.correspondences[i]
+            inner_projections = self.inner_projections[corr]
+            outer_pos = self.outer_points[corr]
+
+            diffs = outer_pos - inner_projections
+            lens = np.linalg.norm(diffs, axis=1)
+
+            # weights = 1 / (lens + 1e-8)
+            # weighted_avg_len = np.average(lens, weights=weights)
+            if len(lens) == 0:
+                continue
+
+            avg_len = np.mean(lens)
+            norm_diffs = diffs / lens[:, np.newaxis]
+
+            self.rbf[i] = avg_len
+            self.diffs[corr] = norm_diffs
 
     def __compute_projections(self):
         # Project relevant outer points to medial sheet
@@ -122,7 +123,18 @@ class MedialAxis:
                 self.rbf[inner_v2] = avg_radius
             else:
                 barycentrics = self.inner_barycentrics[outer_sheet, 1:][mask]
-                vertex_values, _, _, _ = np.linalg.lstsq(barycentrics, radius, rcond=None)
+
+                # centralize and regularize radii to avoid numerical instability
+                mean_value = np.mean(radius)
+                values_centered = radius - mean_value
+                B = barycentrics
+                alpha = 1  # regularization parameter -- might need tuning with input
+                B_reg = np.vstack([B, np.sqrt(alpha) * np.eye(3)])
+                values_reg = np.concatenate([values_centered, np.zeros(3)])
+
+                vertex_values_centered, residuals, rank, s = np.linalg.lstsq(B_reg, values_reg, rcond=None)
+                vertex_values = vertex_values_centered + mean_value
+
                 self.rbf[inner_v0] = vertex_values[0]
                 self.rbf[inner_v1] = vertex_values[1]
                 self.rbf[inner_v2] = vertex_values[2]
