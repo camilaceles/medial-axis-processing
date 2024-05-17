@@ -10,7 +10,7 @@ hand_camera = dict(
     center=dict(x=0, y=0, z=0),
     eye=dict(x=0, y=0, z=2.0)
 )
-hand_width, hand_height = 800, 800
+hand_width, hand_height = 500, 500
 
 leaf_camera = dict(
     up=dict(x=1, y=1, z=0),

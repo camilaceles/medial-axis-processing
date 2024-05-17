@@ -92,7 +92,18 @@ def barycentric_project(m: hmesh.Manifold, points: np.ndarray):
     return face_ids, barycentrics, projected_points
 
 
+def calculate_cumulative_lengths(curve):
+    lengths = [0]
+    for i in range(1, len(curve)):
+        segment_length = np.linalg.norm(curve[i] - curve[i-1])
+        lengths.append(lengths[-1] + segment_length)
+    return np.array(lengths)
+
+
 def project_points_to_curve(points, curve):
+    cumulative_lengths = calculate_cumulative_lengths(curve)
+    total_length = cumulative_lengths[-1]
+
     # Prepare curve segments
     A = curve[:-1]  # Starting points of each segment
     B = curve[1:]   # Ending points of each segment
@@ -120,10 +131,25 @@ def project_points_to_curve(points, curve):
     closest_segment_indices = np.argmin(distances, axis=1)
     t_values = t[np.arange(len(points)), closest_segment_indices]
 
+    # Adjust t_values to account for cumulative lengths
+    cumulative_lengths_for_segments = cumulative_lengths[closest_segment_indices]
+    segment_lengths = cumulative_lengths[closest_segment_indices + 1] - cumulative_lengths_for_segments
+    adjusted_t_values = cumulative_lengths_for_segments + t_values * segment_lengths
+
+    # Normalize t_values by the total length of the curve
+    normalized_t_values = adjusted_t_values / total_length
+
     # Compute the actual closest points based on t_values and closest segments
     projected_points = A[closest_segment_indices] + t_values[:, np.newaxis] * (B[closest_segment_indices] - A[closest_segment_indices])
 
-    return closest_segment_indices, t_values, projected_points
+    return closest_segment_indices, projected_points, t_values, normalized_t_values
+
+
+def get_curve_points_t_values(curve):
+    cumulative_lengths = calculate_cumulative_lengths(curve)
+    total_length = cumulative_lengths[-1]
+    normalized_t_values = cumulative_lengths / total_length
+    return normalized_t_values
 
 
 def flatten(xss):
@@ -201,7 +227,6 @@ def build_ball_correspondences(
     dist, _ = tree.query(inner_points, k=1)
     R = dist + gamma
     correspondences = tree.query_ball_point(inner_points, R)
-    # return correspondences
 
     # Ensure each outer point is only associated to one inner point
     # Choose inner point where inner-outer connection is best aligned with surface normal
