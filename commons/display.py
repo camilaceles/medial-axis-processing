@@ -10,7 +10,14 @@ hand_camera = dict(
     center=dict(x=0, y=0, z=0),
     eye=dict(x=0, y=0, z=2.0)
 )
-hand_width, hand_height = 500, 500
+hand_width, hand_height = 800, 800
+
+x19_camera = dict(
+    up=dict(x=0, y=-1, z=0),
+    center=dict(x=0, y=0, z=0),
+    eye=dict(x=0, y=0, z=2.0)
+)
+x19_width, x19_height = 850, 1200
 
 leaf_camera = dict(
     up=dict(x=1, y=1, z=0),
@@ -22,6 +29,29 @@ leaf_width, leaf_height = 800, 600
 
 camera = hand_camera
 width, height = hand_width, hand_height
+
+
+def __mesh_normal_data(m):
+    pos = m.positions()
+    vertex_normals = np.array([m.vertex_normal(v) for v in range(len(m.vertices()))])
+
+    # Prepare data for vertex normals
+    normals_data = []
+    normal_length = 0.01  # Adjust the length of the normal vectors as needed
+    for i, p in enumerate(pos):
+        normal = vertex_normals[i]
+        p_end = p + normal_length * normal
+        normals_data.append(p)
+        normals_data.append(p_end)
+        normals_data.append(array([None, None, None]))
+    normals_data = array(normals_data)
+
+    normals_plot = go.Scatter3d(x=normals_data[:, 0], y=normals_data[:, 1], z=normals_data[:, 2],
+                                mode='lines',
+                                line=dict(color='rgb(0,0,255)', width=2),
+                                hoverinfo='none',
+                                name="vertex_normals")
+    return normals_plot
 
 
 def __wireframe_plot_data(m):
@@ -53,7 +83,7 @@ def __mesh_plot_data(m, color):
                      i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], color=color, flatshading=False, opacity=1.0)
 
 
-def display_mesh_pointset(m, points):
+def display_mesh_pointset(m, points, show_normals=False):
     wireframe = __wireframe_plot_data(m)
     point_set = go.Scatter3d(x=points[:, 0],
                              y=points[:, 1],
@@ -65,6 +95,10 @@ def display_mesh_pointset(m, points):
                              name="pointset")
 
     mesh_data = [wireframe, point_set]
+
+    if show_normals:
+        normals_plot = __mesh_normal_data(m)
+        mesh_data += [normals_plot]
 
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
@@ -506,3 +540,29 @@ def display_mesh_difference(mesh1, mesh2):
     )
     fig.show()
 
+
+def display_mesh_vertex_colors(m, vertex_colors=None, save_html=None):
+    xyz = np.array([p for p in m.positions()])
+    m_tri = hmesh.Manifold(m)
+    hmesh.triangulate(m_tri)
+    ijk = np.array([[idx for idx in m_tri.circulate_face(f, 'v')] for f in m_tri.faces()])
+    mesh = go.Mesh3d(x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2],
+                     i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], vertexcolor=vertex_colors, flatshading=False)
+
+    mesh_data = [mesh]
+
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            aspectmode="data",
+            camera=camera
+        ),
+        width=width, height=height
+    )
+    if save_html is not None:
+        fig.write_html(save_html + ".html")
+    else:
+        fig.show()

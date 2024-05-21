@@ -90,7 +90,7 @@ def inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
     ma.surface.positions()[:] = ma.outer_points
 
 
-def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, outer_points: list[np.ndarray]):
+def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray):
     """Given the original curve point positions, their updated positions, and a list of corresponding outer points for
        each curve point, returns the parallel transport of the outer points along the curve to the updated positions."""
     orig_tangents = __compute_tangents(old_curve_pos)
@@ -113,21 +113,21 @@ def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, out
 
 
 def inverse_apply_curves(medial_axis: MedialAxis, updated_curve_positions: list[np.ndarray]):
-    for i, curve in enumerate(medial_axis.curves):
+    for curve, new_curve_pos in zip(medial_axis.curves, updated_curve_positions):
         inner_points = medial_axis.inner_points[curve]
         outer_points_indices = medial_axis.correspondences[curve]
+
+        # if curve not updated, skip
+        if np.allclose(inner_points, new_curve_pos):
+            continue
 
         outer_points = []
         for indices in outer_points_indices:
             outer_points.append(medial_axis.outer_points[indices])
 
-        new_outer_points = parallel_transport(
-            inner_points,
-            updated_curve_positions[i],
-            outer_points
-        )
-        medial_axis.inner_points[curve] = updated_curve_positions[i]
-        medial_axis.graph.positions()[curve] = updated_curve_positions[i]
+        new_outer_points = parallel_transport(inner_points, new_curve_pos)
+        medial_axis.inner_points[curve] = new_curve_pos
+        medial_axis.graph.positions()[curve] = new_curve_pos
         for j, indices in enumerate(outer_points_indices):
             if len(indices) == 0:
                 continue

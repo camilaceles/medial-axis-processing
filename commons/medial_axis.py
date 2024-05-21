@@ -13,7 +13,8 @@ class MedialAxis:
             medial_sheet: hmesh.Manifold,
             medial_curves: list[list[int]],
             correspondences: list[list[int]],
-            medial_graph: graph.Graph = None
+            medial_graph: graph.Graph = None,
+            no_smoothing: bool = False  # for non-smoothing applications, we can skip the rbf calculation to save time
     ):
         self.surface: hmesh.Manifold = hmesh.Manifold(surface)
         self.inner_points: np.ndarray = np.copy(inner_points)
@@ -43,7 +44,7 @@ class MedialAxis:
         self.inner_projections = np.zeros(self.outer_points.shape)
         self.inner_barycentrics = np.zeros((self.outer_points.shape[0], 4))
         self.inner_ts = np.zeros((self.outer_points.shape[0], 3))
-        self.__compute_projections()
+        self.__compute_projections(no_smoothing)
         # self.update_radial_basis_function()
 
     def update_correspondences(self, correspondences: list[list[int]]):
@@ -88,7 +89,7 @@ class MedialAxis:
             self.rbf[i] = avg_len
             self.diffs[corr] = norm_diffs
 
-    def __compute_projections(self):
+    def __compute_projections(self, no_smoothing: bool):
         # Project relevant outer points to medial sheet
         outer_sheet = flatten(self.correspondences[~self.curve_indices])
         outer_sheet_pos = self.outer_points[outer_sheet]
@@ -104,6 +105,8 @@ class MedialAxis:
 
         # for each face in sheet, run lstsq to find rbf at each vertex
         for fid in self.sheet.faces():
+            if no_smoothing:
+                break
             vertices = self.sheet.circulate_face(fid, mode='v')
             inner_v0 = self.sheet_to_inner_index[vertices[0]]
             inner_v1 = self.sheet_to_inner_index[vertices[1]]
@@ -161,6 +164,9 @@ class MedialAxis:
             radii = np.linalg.norm(diffs, axis=1)
             norm_diffs = diffs / radii[:, np.newaxis]
             self.diffs[outer_curve] = norm_diffs
+
+            if no_smoothing:
+                continue
 
             if len(curve) < 2:
                 self.inner_ts[outer_curve, 0] = curve[0]

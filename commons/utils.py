@@ -200,7 +200,7 @@ def find_minimum_gamma(mesh, inner_points, start, step):
     return addition
 
 
-def __build_opposite_dict(nested_lists):
+def build_opposite_dict(nested_lists):
     opposite_dict = {}
     for inner_index, outer_list in enumerate(nested_lists):
         for element in outer_list:
@@ -227,13 +227,13 @@ def build_ball_correspondences(
     dist, _ = tree.query(inner_points, k=1)
     R = dist + gamma
     correspondences = tree.query_ball_point(inner_points, R)
+    # return correspondences
 
     # Ensure each outer point is only associated to one inner point
     # Choose inner point where inner-outer connection is best aligned with surface normal
     pos = mesh.positions()
 
-    opposite_dict = __build_opposite_dict(correspondences)
-
+    opposite_dict = build_opposite_dict(correspondences)
     vertex_normals = np.array([mesh.vertex_normal(v) for v in range(len(mesh.vertices()))])
 
     for outer, inners in opposite_dict.items():
@@ -255,43 +255,3 @@ def build_ball_correspondences(
                 correspondences[inner].remove(outer)
 
     return correspondences
-
-def every_other_node(graph: graph.Graph):
-    nodes = graph.nodes()
-    G = nx.Graph()
-    G.add_nodes_from(nodes)
-    for node in nodes:
-        neighbors = graph.neighbors(node)
-        for neighbor in neighbors:
-            G.add_edge(node, neighbor)
-
-    selected_nodes = set()
-    for node in sorted(G.nodes(), key=lambda x: G.degree(x), reverse=True):
-        if all(neighbor not in selected_nodes for neighbor in G.neighbors(node)):
-            selected_nodes.add(node)
-
-    return list(selected_nodes)
-
-
-def select_nodes(g: graph.Graph, target_count):
-    nodes = list(g.nodes())
-    random.shuffle(nodes)  # Shuffle to avoid bias in node order
-
-    selected_nodes = set()
-    for node in nodes:
-        if len(selected_nodes) >= target_count:
-            break
-        if all(neighbor not in selected_nodes for neighbor in g.neighbors(node)):
-            selected_nodes.add(node)
-
-    # If fewer nodes are selected than needed, adjust by adding nodes with minimal increase in adjacency conflicts
-    if len(selected_nodes) < target_count:
-        remaining_nodes = [node for node in nodes if node not in selected_nodes]
-        remaining_nodes.sort(key=lambda x: len(set(g.neighbors(x)) & selected_nodes))  # Sort by fewest conflicts
-        for node in remaining_nodes:
-            if len(selected_nodes) < target_count:
-                selected_nodes.add(node)
-            else:
-                break
-
-    return selected_nodes
