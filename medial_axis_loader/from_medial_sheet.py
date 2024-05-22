@@ -8,12 +8,11 @@ from commons.utils import trimesh_to_manifold, build_ball_correspondences, baryc
 
 def load(
         input_mesh: hmesh.Manifold,
-        filename: str,
+        medial_sheet: hmesh.Manifold,
         no_smoothing: bool = False
 ) -> MedialAxis:
     """In case MAT is simply a sheet"""
     outer_points = input_mesh.positions()
-    medial_sheet = hmesh.load(filename)
     medial_curves = []
 
     vertices = medial_sheet.positions()

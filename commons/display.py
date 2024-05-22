@@ -273,7 +273,7 @@ def display_two_meshes(m1, m2, wireframe=True, color='#dddddd', save_path=None):
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
         showlegend=False,
-        width=2*width, height=height
+        width=width, height=height/2
     )
 
     if save_path is not None:

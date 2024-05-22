@@ -1,7 +1,9 @@
 import numpy as np
 from pygel3d import hmesh
+from trimesh.triangles import barycentric_to_points
 from commons.medial_axis import MedialAxis
 from scipy.spatial.transform import Rotation as R
+from commons.utils import flatten
 
 
 def __get_local_basis(v0, v1, n):
@@ -23,11 +25,41 @@ def __update_point(vertex_new, local_coords, new_basis):
 
 
 def __compute_tangents(curve):
-    # Approximate tangent vectors by finite differences
     tangents = np.gradient(curve, axis=0)
-    # Normalize tangent vectors
     tangents /= np.linalg.norm(tangents, axis=1)[:, np.newaxis]
     return tangents
+
+
+def __update_inner_projections_sheet(medial_axis: MedialAxis, updated_sheet_positions: np.ndarray):
+    for vid in medial_axis.sheet.vertices():
+        corr = medial_axis.sheet_correspondences[vid]
+
+        for outer in corr:
+            closest = medial_axis.inner_barycentrics[outer, 0].astype(int)
+            closest_triangle = medial_axis.sheet.circulate_face(closest, mode='v')
+            new_pos_triangle = updated_sheet_positions[closest_triangle]
+            barycentrics = medial_axis.inner_barycentrics[outer, 1:]
+            new_pos = barycentric_to_points(np.array([new_pos_triangle]), np.array([barycentrics]))
+
+            medial_axis.inner_projections[outer] = new_pos
+
+
+def __update_inner_projections_curve(medial_axis: MedialAxis, updated_curve_positions: list[np.ndarray]):
+    for curve, new_curve_pos in zip(medial_axis.curves, updated_curve_positions):
+        corr = flatten(medial_axis.correspondences[curve])
+
+        # get updated projections of outer points with linear interpolation
+        closest, next, t = medial_axis.inner_ts[corr, 0].astype(int), medial_axis.inner_ts[corr, 1].astype(int), medial_axis.inner_ts[corr, 2]
+
+        value_to_index = {value: index for index, value in enumerate(curve)}
+        closest_idx = [value_to_index[value] for value in closest]
+        next_idx = [value_to_index[value] for value in next]
+
+        pos_a = new_curve_pos[closest_idx]
+        pos_b = new_curve_pos[next_idx]
+        new_pos = pos_a + (pos_b - pos_a) * t.reshape(-1, 1)
+
+        medial_axis.inner_projections[corr] = new_pos
 
 
 def inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
@@ -52,7 +84,7 @@ def inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
 
         corresponding_outer = ma.sheet_correspondences[vid]
 
-        # if vertex is curve connection, also update curve inner and outer points
+        # if vertex is curve connection, also update curve inner and outer points.
         # this ensures the connecting curve points are aligned with the updated sheet
         inner = ma.sheet_to_inner_index[vid]
         if ma.curve_indices[inner]:
@@ -88,9 +120,10 @@ def inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
     ma.graph.positions()[~ma.curve_indices] = updated_sheet_positions[ma.inner_to_sheet_index[~ma.curve_indices]]
 
     ma.surface.positions()[:] = ma.outer_points
+    __update_inner_projections_sheet(ma, updated_sheet_positions)
 
 
-def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray):
+def parallel_transport(old_curve_pos: np.ndarray, new_curve_pos: np.ndarray, outer_points: list[np.ndarray]):
     """Given the original curve point positions, their updated positions, and a list of corresponding outer points for
        each curve point, returns the parallel transport of the outer points along the curve to the updated positions."""
     orig_tangents = __compute_tangents(old_curve_pos)
@@ -125,7 +158,11 @@ def inverse_apply_curves(medial_axis: MedialAxis, updated_curve_positions: list[
         for indices in outer_points_indices:
             outer_points.append(medial_axis.outer_points[indices])
 
-        new_outer_points = parallel_transport(inner_points, new_curve_pos)
+        new_outer_points = parallel_transport(
+            inner_points,
+            new_curve_pos,
+            outer_points
+        )
         medial_axis.inner_points[curve] = new_curve_pos
         medial_axis.graph.positions()[curve] = new_curve_pos
         for j, indices in enumerate(outer_points_indices):
@@ -133,6 +170,7 @@ def inverse_apply_curves(medial_axis: MedialAxis, updated_curve_positions: list[
                 continue
             medial_axis.outer_points[indices] = new_outer_points[j]
             medial_axis.surface.positions()[indices] = new_outer_points[j]
+        __update_inner_projections_curve(medial_axis, updated_curve_positions)
 
 
 def inverse_apply_medial_axis(
