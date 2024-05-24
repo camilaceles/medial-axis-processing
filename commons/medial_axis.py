@@ -31,7 +31,7 @@ class MedialAxis:
         self.inner_to_sheet_index: np.ndarray = np.zeros(self.inner_points.shape[0], dtype=int)
         self.sheet_to_inner_index: np.ndarray = np.zeros(len(self.sheet.vertices()), dtype=int)
 
-        # Store list of surface points corresponding to each sheet point
+        # Store list of surface points corresponding to each point in MA
         self.correspondences = correspondences
         self.sheet_correspondences: list[list[int]] = [[] for _ in range(len(self.sheet.vertices()))]
         self.__map_sheet_correspondences()
@@ -39,6 +39,7 @@ class MedialAxis:
         # Compute average radial basis function
         self.rbf = np.zeros(self.inner_points.shape[0])
         self.diffs = np.zeros(self.outer_points.shape)
+        self.diff_lens = np.zeros(self.outer_points.shape[0])
 
         # Compute projections
         self.inner_projections = np.zeros(self.outer_points.shape)
@@ -102,6 +103,7 @@ class MedialAxis:
         radii = np.linalg.norm(diffs, axis=1)
         norm_diffs = diffs / radii[:, np.newaxis]
         self.diffs[outer_sheet] = norm_diffs
+        self.diff_lens[outer_sheet] = radii
 
         # for each face in sheet, run lstsq to find rbf at each vertex
         for fid in self.sheet.faces():
