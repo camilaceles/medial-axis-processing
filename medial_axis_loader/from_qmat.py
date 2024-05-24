@@ -7,7 +7,7 @@ from medial_axis_loader import shared
 from medial_axis_loader.shared import to_graph
 
 
-def __read_qmat(filename: str) -> tuple[np.ndarray, list[list[int]], list[list[int]]]:
+def read_qmat(filename: str) -> tuple[np.ndarray, list[list[int]], list[list[int]]]:
     vertices = []
     edges = []
     faces = []
@@ -32,10 +32,11 @@ def __read_qmat(filename: str) -> tuple[np.ndarray, list[list[int]], list[list[i
 def load(
         input_mesh: hmesh.Manifold,
         filename: str,
+        correspondences: list[list[int]] = None,
         start=0.005, step=0.001
 ) -> MedialAxis:
     """Loads MedialAxis object from a file outputted by Q-MAT."""
-    vertices, edges, faces = __read_qmat(filename)
+    vertices, edges, faces = read_qmat(filename)
     graph = to_graph(vertices, edges)
 
     medial_sheet = shared.to_medial_sheet(vertices, faces)
@@ -43,6 +44,9 @@ def load(
 
     medial_curves = shared.to_medial_curves(vertices, edges, faces)
 
-    correspondences = build_ball_correspondences(input_mesh, vertices, start=start, step=step)
+    if correspondences is None:
+        correspondences = build_ball_correspondences(input_mesh, vertices, start=start, step=step)
+    else:
+        correspondences = np.array(correspondences, dtype=object)
 
     return MedialAxis(input_mesh, vertices, medial_sheet, medial_curves, correspondences, graph)

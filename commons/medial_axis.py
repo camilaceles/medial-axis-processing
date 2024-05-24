@@ -89,7 +89,7 @@ class MedialAxis:
             self.rbf[i] = avg_len
             self.diffs[corr] = norm_diffs
 
-    def __compute_projections(self, no_smoothing: bool):
+    def __compute_projections(self, no_smoothing: bool = False):
         # Project relevant outer points to medial sheet
         outer_sheet = flatten(self.correspondences[~self.curve_indices])
         outer_sheet_pos = self.outer_points[outer_sheet]

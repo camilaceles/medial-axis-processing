@@ -227,7 +227,6 @@ def build_ball_correspondences(
     dist, _ = tree.query(inner_points, k=1)
     R = dist + gamma
     correspondences = tree.query_ball_point(inner_points, R)
-    # return correspondences
 
     # Ensure each outer point is only associated to one inner point
     # Choose inner point where inner-outer connection is best aligned with surface normal
