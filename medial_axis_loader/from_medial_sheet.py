@@ -3,7 +3,7 @@ from pygel3d import hmesh, graph
 from scipy.spatial import KDTree
 
 from commons.medial_axis import MedialAxis
-from commons.utils import trimesh_to_manifold, build_ball_correspondences, barycentric_project
+from commons.utils import build_ball_correspondences
 
 
 def load(

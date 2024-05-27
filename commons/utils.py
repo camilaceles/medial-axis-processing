@@ -92,6 +92,60 @@ def barycentric_project(m: hmesh.Manifold, points: np.ndarray):
     return face_ids, barycentrics, projected_points
 
 
+def barycentric_project_v2(m: hmesh.Manifold, correspondences: list[list[int]], points: np.ndarray):
+    face_ids = np.zeros(len(points), dtype=int)
+    barycentrics = np.zeros((len(points), 3))
+    projected_points = np.zeros((len(points), 3))
+
+    for vid in m.vertices():
+        corr = correspondences[vid]
+
+        if len(corr) == 0:
+            continue
+
+        faces_idx = m.circulate_vertex(vid, mode='f')
+        faces = np.array([m.circulate_face(fid) for fid in faces_idx])
+
+        trim = trimesh.Trimesh(vertices=m.positions(), faces=faces, process=False)
+        prox_query = trimesh.proximity.ProximityQuery(trim)
+        projs, _, fids = prox_query.on_surface(points[corr])
+
+        triangles = trim.triangles[fids]
+        bar = trimesh.triangles.points_to_barycentric(triangles, projs)
+        face_ids[corr] = fids
+        barycentrics[corr] = bar
+        projected_points[corr] = projs
+
+    return face_ids, barycentrics, projected_points
+
+
+def barycentric_project_v2(m: hmesh.Manifold, correspondences: list[list[int]], points: np.ndarray):
+    face_ids = np.zeros(len(points), dtype=int)
+    barycentrics = np.zeros((len(points), 3))
+    projected_points = np.zeros((len(points), 3))
+
+    for vid in m.vertices():
+        corr = correspondences[vid]
+        if len(corr) == 0:
+            continue
+
+        faces_idx = m.circulate_vertex(vid, mode='f')
+        faces = np.array([m.circulate_face(fid) for fid in faces_idx])
+
+        trim = trimesh.Trimesh(vertices=m.positions(), faces=faces, process=False)
+        prox_query = trimesh.proximity.ProximityQuery(trim)
+        projs, _, fids = prox_query.on_surface(points[corr])
+
+        triangles = trim.triangles[fids]
+        bar = trimesh.triangles.points_to_barycentric(triangles, projs)
+
+        face_ids[corr] = fids
+        barycentrics[corr] = bar
+        projected_points[corr] = projs
+
+    return face_ids, barycentrics, projected_points
+
+
 def calculate_cumulative_lengths(curve):
     lengths = [0]
     for i in range(1, len(curve)):

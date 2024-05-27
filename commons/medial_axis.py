@@ -2,7 +2,8 @@ import numpy as np
 import trimesh
 from scipy.spatial import KDTree
 from pygel3d import *
-from commons.utils import flatten, project_points_to_curve, barycentric_project, get_curve_points_t_values
+from commons.utils import flatten, project_points_to_curve, barycentric_project, get_curve_points_t_values, \
+    barycentric_project_v2
 
 
 class MedialAxis:
@@ -94,7 +95,9 @@ class MedialAxis:
         # Project relevant outer points to medial sheet
         outer_sheet = flatten(self.correspondences[~self.curve_indices])
         outer_sheet_pos = self.outer_points[outer_sheet]
-        face_ids, barycentrics, projected = barycentric_project(self.sheet, outer_sheet_pos)
+        # face_ids, barycentrics, projected = barycentric_project(self.sheet, outer_sheet_pos)
+        face_ids, barycentrics, projected = barycentric_project_v2(self.sheet, self.sheet_correspondences, self.outer_points)
+        face_ids, barycentrics, projected = face_ids[outer_sheet], barycentrics[outer_sheet], projected[outer_sheet]
         self.inner_projections[outer_sheet] = projected
         self.inner_barycentrics[outer_sheet, 0] = face_ids
         self.inner_barycentrics[outer_sheet, 1:] = barycentrics
