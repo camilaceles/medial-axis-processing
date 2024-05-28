@@ -2,8 +2,7 @@ import numpy as np
 import trimesh
 from scipy.spatial import KDTree
 from pygel3d import *
-from commons.utils import flatten, project_points_to_curve, barycentric_project, get_curve_points_t_values, \
-    barycentric_project_v2
+from commons.utils import flatten, trimesh_to_manifold, project_points_to_curve, barycentric_project
 
 
 class MedialAxis:
@@ -82,6 +81,8 @@ class MedialAxis:
             diffs = outer_pos - inner_projections
             lens = np.linalg.norm(diffs, axis=1)
 
+            # weights = 1 / (lens + 1e-8)
+            # weighted_avg_len = np.average(lens, weights=weights)
             if len(lens) == 0:
                 continue
 
@@ -95,9 +96,9 @@ class MedialAxis:
         # Project relevant outer points to medial sheet
         outer_sheet = flatten(self.correspondences[~self.curve_indices])
         outer_sheet_pos = self.outer_points[outer_sheet]
-        # face_ids, barycentrics, projected = barycentric_project(self.sheet, outer_sheet_pos)
-        face_ids, barycentrics, projected = barycentric_project_v2(self.sheet, self.sheet_correspondences, self.outer_points)
-        face_ids, barycentrics, projected = face_ids[outer_sheet], barycentrics[outer_sheet], projected[outer_sheet]
+        face_ids, barycentrics, projected = barycentric_project(self.sheet, outer_sheet_pos)
+        # face_ids, barycentrics, projected = barycentric_project_v2(self.sheet, self.sheet_correspondences, self.outer_points)
+        # face_ids, barycentrics, projected = face_ids[outer_sheet], barycentrics[outer_sheet], projected[outer_sheet]
         self.inner_projections[outer_sheet] = projected
         self.inner_barycentrics[outer_sheet, 0] = face_ids
         self.inner_barycentrics[outer_sheet, 1:] = barycentrics
@@ -122,8 +123,7 @@ class MedialAxis:
             if np.sum(mask) == 0:
                 # skip, no outer points are corresponding to this face
                 continue
-            elif np.sum(mask) < 10:
-                # too few points to get a robust regression result
+            elif np.sum(mask) < 3:
                 avg_radius = np.mean(radius)
                 self.rbf[inner_v0] = avg_radius
                 self.rbf[inner_v1] = avg_radius
@@ -154,17 +154,13 @@ class MedialAxis:
             outer_curve = flatten(self.correspondences[curve])
             outer_curve_pos = self.outer_points[outer_curve]
 
-            # project to curve and store corresponding closest segment and t values on segment and curve
-            closest_segment, projected, t_values_segments, t_values_curve = \
-                project_points_to_curve(outer_curve_pos, curve_pos)
-
-            # for each point, store segment and t values
+            # project to curve and store corresponding segment and t values
+            closest_segment, t_values, projected = project_points_to_curve(outer_curve_pos, curve_pos)
             self.inner_projections[outer_curve] = projected
             self.inner_ts[outer_curve, 0] = curve[closest_segment]
             self.inner_ts[outer_curve, 1] = curve[closest_segment+1]
-            self.inner_ts[outer_curve, 2] = t_values_segments
+            self.inner_ts[outer_curve, 2] = t_values
 
-            # also store the normalized difference vector to use in smoothing
             diffs = outer_curve_pos - projected
             radii = np.linalg.norm(diffs, axis=1)
             norm_diffs = diffs / radii[:, np.newaxis]
@@ -180,20 +176,25 @@ class MedialAxis:
                 self.rbf[curve[0]] = radii
                 continue
 
-            # run lstsq to find rbf at each vertex. We use t_values_curve to get a robust estimate
-            # along entire curve, instead of just the segment. This is helpful when the curve is
-            # too dense and the segment is too short to get a robust estimate.
-            t_values = np.concatenate(([0], t_values_curve, [1]))
-            radii = np.concatenate(([np.nan], radii, [np.nan]))
+            # for each segment in curve, run lstsq to find rbf at each curve point
+            for segment in range(len(curve)-1):
+                mask = closest_segment == segment
+                t_values = self.inner_ts[outer_curve, 2][mask]
+                radius = radii[mask]
 
-            mask = ~np.isnan(radii)
-            t_fit = t_values[mask]
-            values_fit = radii[mask]
+                t_values = np.concatenate(([0], t_values, [1]))
+                radius = np.concatenate(([np.nan], radius, [np.nan]))
 
-            A = np.vstack([t_fit, np.ones(len(t_fit))]).T
-            m, c = np.linalg.lstsq(A, values_fit, rcond=None)[0]
+                mask = ~np.isnan(radius)
+                t_fit = t_values[mask]
+                values_fit = radius[mask]
 
-            # then store the estimated value at each curve vertex
-            curve_t_values = get_curve_points_t_values(curve_pos)
-            for i, vid in enumerate(curve):
-                self.rbf[vid] = m * curve_t_values[i] + c
+                A = np.vstack([t_fit, np.ones(len(t_fit))]).T
+                m, c = np.linalg.lstsq(A, values_fit, rcond=None)[0]
+
+                value_at_start = m * 0 + c
+                value_at_end = m * 1 + c
+
+                start, end = curve[segment], curve[segment+1]
+                self.rbf[start] = value_at_start
+                self.rbf[end] = value_at_end
