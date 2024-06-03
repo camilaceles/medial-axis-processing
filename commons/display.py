@@ -4,6 +4,7 @@ from pygel3d import hmesh
 from numpy import array
 import numpy as np
 from commons.medial_axis import MedialAxis
+from commons.utils import farthest_point_sampling
 
 hand_camera = dict(
     up=dict(x=0, y=-1, z=0),
@@ -26,6 +27,11 @@ leaf_camera = dict(
 )
 leaf_width, leaf_height = 800, 600
 
+cam = dict(
+    up=dict(x=0, y=0, z=1),
+    center=dict(x=0, y=0, z=0),
+    eye=dict(x=-2, y=-1.5, z=0.2)
+)
 
 camera = hand_camera
 width, height = hand_width, hand_height
@@ -75,12 +81,66 @@ def __wireframe_plot_data(m):
     return wireframe
 
 
-def __mesh_plot_data(m, color):
+def __graph_plot_data(g, color='#000000', width=1, opacity=1.0):
+    pos = g.positions()
+    xyze = []
+    for v in g.nodes():
+        for w in g.neighbors(v):
+            if v < w:
+                p0 = pos[v]
+                p1 = pos[w]
+                xyze.append(array(p0))
+                xyze.append(array(p1))
+                xyze.append(array([None, None, None]))
+    xyze = array(xyze)
+    trace1 = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
+                          mode='lines',
+                          opacity=opacity,
+                          line=dict(color=color, width=width), hoverinfo='none')
+    return trace1
+
+
+def __mesh_plot_data(m, color, opacity=1.0, smooth=True, diffuse=False):
     xyz = array([p for p in m.positions()])
     ijk = array([[idx for idx in m.circulate_face(f, 'v')] for f in m.faces()])
 
+    lighting = None
+    if diffuse:
+        lighting = dict(ambient=1,
+                        diffuse=0,
+                        fresnel=0,
+                        specular=0,
+                        roughness=1,
+                        facenormalsepsilon=0,
+                        vertexnormalsepsilon=0)
+
     return go.Mesh3d(x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2],
-                     i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], color=color, flatshading=False, opacity=1.0)
+                 i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], color=color, flatshading=not smooth, opacity=opacity,
+                 lighting=lighting)
+
+
+def display_medial_mesh(ma: MedialAxis, save_path=None):
+    surf = __mesh_plot_data(ma.surface, "#dddddd", 0.5, smooth=True)
+    medial_sheet = __mesh_plot_data(ma.sheet, "#4d6aff", 1.0)
+    medial_mesh = __graph_plot_data(ma.graph, "#000000", 3)
+
+    mesh_data = [surf, medial_sheet, medial_mesh]
+
+    fig = go.Figure(data=mesh_data)
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            aspectmode="data",
+            camera=camera
+        ),
+        width=width, height=height
+    )
+    if save_path is not None:
+        fig.write_image(save_path + ".png")
+    fig.show()
 
 
 def display_mesh_pointset(m, points, show_normals=False):
@@ -303,23 +363,11 @@ def display_uv(m, uv):
 
 
 def display_graph(g, show_points=False, save_path=None):
-    pos = g.positions()
-    xyze = []
-    for v in g.nodes():
-        for w in g.neighbors(v):
-            if v < w:
-                p0 = pos[v]
-                p1 = pos[w]
-                xyze.append(array(p0))
-                xyze.append(array(p1))
-                xyze.append(array([None, None, None]))
-    xyze = array(xyze)
-    trace1 = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
-                          mode='lines',
-                          line=dict(color='rgb(0,0,0)', width=1), hoverinfo='none')
-
+    trace1 = __graph_plot_data(g)
     mesh_data = [trace1]
+
     if show_points:
+        pos = g.positions()
         point_set = go.Scatter3d(x=pos[:, 0],
                                  y=pos[:, 1],
                                  z=pos[:, 2],
@@ -441,20 +489,32 @@ def display_correspondences(outer_points, inner_points, correspondences):
     fig.show()
 
 
-def display_inner_projections(ma: MedialAxis):
-    proj = go.Scatter3d(x=ma.inner_projections[:, 0],
-                         y=ma.inner_projections[:, 1],
-                         z=ma.inner_projections[:, 2],
+def display_inner_projections(ma: MedialAxis, show_n=None, indices=None, save_path=None):
+    if indices is None:
+        indices = np.arange(len(ma.outer_points))
+    if show_n is not None:
+        indices = farthest_point_sampling(ma.outer_points, show_n)
+        print(indices.tolist())
+
+    surf = __mesh_plot_data(ma.surface, "rgb(0,125,0)", 0.2, smooth=True, diffuse=True)
+
+    medial_sheet = __mesh_plot_data(ma.sheet, "#4d6aff", 0.3, diffuse=True)
+    medial_mesh = __graph_plot_data(ma.graph, "#4d6aff", 3, 0.3)
+
+
+    proj = go.Scatter3d(x=ma.inner_projections[indices, 0],
+                         y=ma.inner_projections[indices, 1],
+                         z=ma.inner_projections[indices, 2],
                          mode='markers',
-                         marker_size=1,
-                         line=dict(color='rgb(0,0,125)', width=1),
+                         marker_size=3,
+                         line=dict(color='rgb(0,0,255)', width=5),
                          name="projection")
-    outer = go.Scatter3d(x=ma.outer_points[:, 0],
-                         y=ma.outer_points[:, 1],
-                         z=ma.outer_points[:, 2],
+    outer = go.Scatter3d(x=ma.outer_points[indices, 0],
+                         y=ma.outer_points[indices, 1],
+                         z=ma.outer_points[indices, 2],
                          mode='markers',
-                         marker_size=1,
-                         line=dict(color='rgb(0,125,0)', width=1),
+                         marker_size=3,
+                         line=dict(color='rgb(0,125,0)', width=5),
                          name="outer")
 
     inner = go.Scatter3d(x=ma.inner_points[:, 0],
@@ -466,9 +526,9 @@ def display_inner_projections(ma: MedialAxis):
                          name="inner")
 
     connections = []
-    for i, q in enumerate(ma.inner_projections):
+    for i, q in enumerate(ma.inner_projections[indices]):
         connections.append(q)
-        connections.append(ma.outer_points[i])
+        connections.append(ma.outer_points[indices][i])
         connections.append(array([None, None, None]))
     connections = array(connections)
 
@@ -479,7 +539,7 @@ def display_inner_projections(ma: MedialAxis):
                                     line=dict(color='black', width=1),
                                     hoverinfo='none',
                                     name="connections")
-    mesh_data = [proj, outer, connecting_lines, inner]
+    mesh_data = [surf, medial_sheet, medial_mesh, proj, outer, connecting_lines]  # inner]
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
@@ -490,10 +550,12 @@ def display_inner_projections(ma: MedialAxis):
             aspectmode="data",
             camera=camera
         ),
-        width=width, height=height
+        width=width, height=height,
+        showlegend=False
     )
+    if save_path is not None:
+        fig.write_image(save_path + ".svg")
     fig.show()
-
 
 def display_mesh_difference(mesh1, mesh2):
     wireframe1 = __wireframe_plot_data(mesh1)
@@ -566,3 +628,66 @@ def display_mesh_vertex_colors(m, vertex_colors=None, save_html=None):
         fig.write_html(save_html + ".html")
     else:
         fig.show()
+
+
+
+def plot_frames(curve_positions, frames, sheet, title="Frames Visualization"):
+    fig = go.Figure()
+
+    xyz = np.array([p for p in sheet.positions()])
+    ijk = np.array([[idx for idx in sheet.circulate_face(f, 'v')] for f in sheet.faces()])
+    fig.add_trace(go.Mesh3d(x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2], i=ijk[:, 0], j=ijk[:, 1], k=ijk[:, 2], opacity=0.5))
+
+    # Add the curve itself
+    fig.add_trace(go.Scatter3d(
+        x=curve_positions[:, 0],
+        y=curve_positions[:, 1],
+        z=curve_positions[:, 2],
+        mode='lines+markers',
+        line=dict(color='black', width=2),
+        marker=dict(size=4),
+        name='Curve'
+    ))
+
+    # Add the tangents, normals, and binormals
+    for i in range(len(curve_positions)):
+        fig.add_trace(go.Scatter3d(
+            x=[curve_positions[i, 0], curve_positions[i, 0] + frames[i, 0, 0]],
+            y=[curve_positions[i, 1], curve_positions[i, 1] + frames[i, 0, 1]],
+            z=[curve_positions[i, 2], curve_positions[i, 2] + frames[i, 0, 2]],
+            mode='lines',
+            line=dict(color='red', width=2),
+            name='Tangent' if i == 0 else None,
+            showlegend=(i == 0)
+        ))
+        fig.add_trace(go.Scatter3d(
+            x=[curve_positions[i, 0], curve_positions[i, 0] + frames[i, 1, 0]],
+            y=[curve_positions[i, 1], curve_positions[i, 1] + frames[i, 1, 1]],
+            z=[curve_positions[i, 2], curve_positions[i, 2] + frames[i, 1, 2]],
+            mode='lines',
+            line=dict(color='green', width=2),
+            name='Normal' if i == 0 else None,
+            showlegend=(i == 0)
+        ))
+        fig.add_trace(go.Scatter3d(
+            x=[curve_positions[i, 0], curve_positions[i, 0] + frames[i, 2, 0]],
+            y=[curve_positions[i, 1], curve_positions[i, 1] + frames[i, 2, 1]],
+            z=[curve_positions[i, 2], curve_positions[i, 2] + frames[i, 2, 2]],
+            mode='lines',
+            line=dict(color='blue', width=2),
+            name='Binormal' if i == 0 else None,
+            showlegend=(i == 0)
+        ))
+
+    fig.update_layout(
+        title=title,
+        scene=dict(
+            xaxis_title='X',
+            yaxis_title='Y',
+            zaxis_title='Z',
+            aspectmode='data'
+        ),
+        width=800,height=800
+    )
+
+    fig.show()

@@ -24,6 +24,13 @@ def smooth(m, max_iter=1):
     m.cleanup()
 
 
+def get_local_basis(v0, v1, n):
+    b0 = v1 - v0
+    b0 /= np.linalg.norm(b0)
+    b1 = np.cross(n, b0)
+    return np.array([b0, b1, n])
+
+
 def __sample_point_in_face(m: hmesh.Manifold, fid: int):
     vertices = m.circulate_face(fid, mode='v')
     vertices_pos = m.positions()[vertices]
@@ -264,3 +271,26 @@ def build_ball_correspondences(
                 correspondences[inner].remove(outer)
 
     return correspondences
+
+
+def farthest_point_sampling(points, M):
+    N = points.shape[0]
+    selected_indices = np.zeros(M, dtype=int)
+    distances = np.full(N, np.inf)
+
+    # Randomly select the first point
+    # selected_indices[0] = np.random.randint(N)
+    selected_indices[0] = 0
+
+    for i in range(1, M):
+        last_selected_index = selected_indices[i - 1]
+        last_selected_point = points[last_selected_index]
+
+        # Update the minimum distance to the selected points
+        dist_to_last_selected = np.linalg.norm(points - last_selected_point, axis=1)
+        distances = np.minimum(distances, dist_to_last_selected)
+
+        # Select the point with the maximum distance to the selected points
+        selected_indices[i] = np.argmax(distances)
+
+    return selected_indices

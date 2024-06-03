@@ -4,6 +4,18 @@ from pygel3d import hmesh
 from commons.medial_axis import MedialAxis
 from scipy.spatial.transform import Rotation as R
 from sklearn.decomposition import PCA
+from commons.utils import get_local_basis
+
+
+def __project_point_to_basis(point, vertex, basis):
+    # get point coordinates in local basis
+    v_p = point - vertex
+    return np.dot(v_p, basis[0]), np.dot(v_p, basis[1]), np.dot(v_p, basis[2])
+
+
+def __update_point(vertex_new, local_coords, new_basis):
+    # retrieve global coordinates from local basis coordinates
+    return vertex_new + local_coords[0] * new_basis[0] + local_coords[1] * new_basis[1] + local_coords[2] * new_basis[2]
 
 
 def __compute_principal_axes(vertices):
@@ -71,12 +83,42 @@ def get_unfolded_sheet_positions(ma: MedialAxis, sheet: hmesh.Manifold = None) -
     return uv
 
 
-def get_unfolded_curve_positions(ma: MedialAxis) -> list[np.ndarray]:
-    unfolded_curve_positions = []
-    for curve in ma.curves:
-        new_curve_pos = np.copy(ma.inner_points[curve])
-        new_curve_pos[:, 2] = 0  # project to z=0 plane
-        unfolded_curve_positions.append(new_curve_pos)
+def get_unfolded_medial_axis_positions(ma: MedialAxis) -> np.ndarray:
+    unfolded_inner_pos = np.copy(ma.inner_points)
 
-    return unfolded_curve_positions
+    unfolded_sheet_positions = get_unfolded_sheet_positions(ma)
+    unfolded_inner_pos[~ma.curve_indices] = unfolded_sheet_positions[ma.inner_to_sheet_index[~ma.curve_indices]]
 
+    positions = ma.sheet.positions()
+    updated_sheet = hmesh.Manifold(ma.sheet)
+    updated_sheet.positions()[:] = unfolded_sheet_positions
+
+    # for sheet-curve connection points, carry the sheet update to the curve points.
+    # this ensures the connecting they are aligned with the updated sheet positions
+    for vid in ma.sheet.vertices():
+        neighbor = ma.sheet.circulate_vertex(vid)[0]
+
+        n_old = ma.sheet.vertex_normal(vid)
+        basis_old = get_local_basis(positions[vid], positions[neighbor], n_old)
+
+        n_new = updated_sheet.vertex_normal(vid)
+        basis_new = get_local_basis(unfolded_sheet_positions[vid], unfolded_sheet_positions[neighbor], n_new)
+
+        inner = ma.sheet_to_inner_index[vid]
+        if ma.curve_indices[inner]:
+            # find associated curve
+            curve_index = next((i for i, curve in enumerate(ma.curves) if curve and curve[0] == inner), -1)
+            curve = ma.curves[curve_index]
+
+            # map transformation to curve inner points
+            for inner_idx in curve:
+                inner_point = ma.inner_points[inner_idx]
+
+                local_coords = __project_point_to_basis(inner_point, positions[vid], basis_old)
+                new_pos = __update_point(unfolded_sheet_positions[vid], local_coords, basis_new)
+                unfolded_inner_pos[inner_idx] = new_pos
+
+    # project curve to plane z=0
+    unfolded_inner_pos[ma.curve_indices, 2] = 0
+
+    return unfolded_inner_pos

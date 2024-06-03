@@ -27,6 +27,11 @@ class MedialAxis:
         self.curve_indices = np.zeros(inner_points.shape[0], dtype=bool)
         self.curve_indices[list(set(flatten(self.curves)))] = True
 
+        # connection is also in sheet (first pos of curve)
+        self.sheet_indices = ~self.curve_indices
+        for curve in self.curves:
+            self.sheet_indices[curve[0]] = True
+
         # Store the indices of corresponding inner points in the medial sheet
         self.inner_to_sheet_index: np.ndarray = np.zeros(self.inner_points.shape[0], dtype=int)
         self.sheet_to_inner_index: np.ndarray = np.zeros(len(self.sheet.vertices()), dtype=int)
@@ -43,7 +48,7 @@ class MedialAxis:
 
         # Compute projections
         self.inner_projections = np.zeros(self.outer_points.shape)
-        self.inner_barycentrics = np.zeros((self.outer_points.shape[0], 4))
+        self.inner_barycentrics = -1 * np.ones((self.outer_points.shape[0], 4))
         self.inner_ts = np.zeros((self.outer_points.shape[0], 3))
         self.__compute_projections(no_smoothing)
         # self.update_radial_basis_function()
@@ -165,6 +170,7 @@ class MedialAxis:
             radii = np.linalg.norm(diffs, axis=1)
             norm_diffs = diffs / radii[:, np.newaxis]
             self.diffs[outer_curve] = norm_diffs
+            self.diff_lens[outer_curve] = radii
 
             if no_smoothing:
                 continue
