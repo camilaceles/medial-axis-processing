@@ -9,7 +9,6 @@ from commons.utils import build_ball_correspondences
 def load(
         input_mesh: hmesh.Manifold,
         medial_sheet: hmesh.Manifold,
-        no_smoothing: bool = False
 ) -> MedialAxis:
     """In case MAT is simply a sheet"""
     medial_curves = []
@@ -20,5 +19,5 @@ def load(
 
     g = graph.from_mesh(medial_sheet)
 
-    return MedialAxis(input_mesh, vertices, medial_sheet, medial_curves, correspondences, g, no_smoothing)
+    return MedialAxis(input_mesh, vertices, medial_sheet, medial_curves, correspondences, g)
 

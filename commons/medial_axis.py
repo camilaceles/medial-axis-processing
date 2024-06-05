@@ -14,7 +14,6 @@ class MedialAxis:
             medial_curves: list[list[int]],
             correspondences: list[list[int]],
             medial_graph: graph.Graph = None,
-            no_smoothing: bool = False  # for non-smoothing applications, we can skip the rbf calculation to save time
     ):
         self.surface: hmesh.Manifold = hmesh.Manifold(surface)
         self.inner_points: np.ndarray = np.copy(inner_points)
@@ -50,7 +49,7 @@ class MedialAxis:
         self.inner_projections = np.zeros(self.outer_points.shape)
         self.inner_barycentrics = -1 * np.ones((self.outer_points.shape[0], 4))
         self.inner_ts = np.zeros((self.outer_points.shape[0], 3))
-        self.__compute_projections(no_smoothing)
+        self.__compute_projections()
         # self.update_radial_basis_function()
 
     def update_correspondences(self, correspondences: list[list[int]]):
@@ -97,7 +96,7 @@ class MedialAxis:
             self.rbf[i] = avg_len
             self.diffs[corr] = norm_diffs
 
-    def __compute_projections(self, no_smoothing: bool = False):
+    def __compute_projections(self):
         # Project relevant outer points to medial sheet
         outer_sheet = flatten(self.correspondences[~self.curve_indices])
         outer_sheet_pos = self.outer_points[outer_sheet]
@@ -113,43 +112,6 @@ class MedialAxis:
         norm_diffs = diffs / radii[:, np.newaxis]
         self.diffs[outer_sheet] = norm_diffs
         self.diff_lens[outer_sheet] = radii
-
-        # for each face in sheet, run lstsq to find rbf at each vertex
-        for fid in self.sheet.faces():
-            if no_smoothing:
-                break
-            vertices = self.sheet.circulate_face(fid, mode='v')
-            inner_v0 = self.sheet_to_inner_index[vertices[0]]
-            inner_v1 = self.sheet_to_inner_index[vertices[1]]
-            inner_v2 = self.sheet_to_inner_index[vertices[2]]
-
-            mask = face_ids == fid
-            radius = radii[mask]
-            if np.sum(mask) == 0:
-                # skip, no outer points are corresponding to this face
-                continue
-            elif np.sum(mask) < 3:
-                avg_radius = np.mean(radius)
-                self.rbf[inner_v0] = avg_radius
-                self.rbf[inner_v1] = avg_radius
-                self.rbf[inner_v2] = avg_radius
-            else:
-                barycentrics = self.inner_barycentrics[outer_sheet, 1:][mask]
-
-                # centralize and regularize radii to avoid numerical instability
-                mean_value = np.mean(radius)
-                values_centered = radius - mean_value
-                B = barycentrics
-                alpha = 1  # regularization parameter -- might need tuning with input
-                B_reg = np.vstack([B, np.sqrt(alpha) * np.eye(3)])
-                values_reg = np.concatenate([values_centered, np.zeros(3)])
-
-                vertex_values_centered, residuals, rank, s = np.linalg.lstsq(B_reg, values_reg, rcond=None)
-                vertex_values = vertex_values_centered + mean_value
-
-                self.rbf[inner_v0] = vertex_values[0]
-                self.rbf[inner_v1] = vertex_values[1]
-                self.rbf[inner_v2] = vertex_values[2]
 
         # Project relevant outer points to medial curves
         for curve in self.curves:
@@ -171,36 +133,3 @@ class MedialAxis:
             norm_diffs = diffs / radii[:, np.newaxis]
             self.diffs[outer_curve] = norm_diffs
             self.diff_lens[outer_curve] = radii
-
-            if no_smoothing:
-                continue
-
-            if len(curve) < 2:
-                self.inner_ts[outer_curve, 0] = curve[0]
-                self.inner_ts[outer_curve, 1] = curve[0]
-                self.inner_ts[outer_curve, 2] = 0
-                self.rbf[curve[0]] = radii
-                continue
-
-            # for each segment in curve, run lstsq to find rbf at each curve point
-            for segment in range(len(curve)-1):
-                mask = closest_segment == segment
-                t_values = self.inner_ts[outer_curve, 2][mask]
-                radius = radii[mask]
-
-                t_values = np.concatenate(([0], t_values, [1]))
-                radius = np.concatenate(([np.nan], radius, [np.nan]))
-
-                mask = ~np.isnan(radius)
-                t_fit = t_values[mask]
-                values_fit = radius[mask]
-
-                A = np.vstack([t_fit, np.ones(len(t_fit))]).T
-                m, c = np.linalg.lstsq(A, values_fit, rcond=None)[0]
-
-                value_at_start = m * 0 + c
-                value_at_end = m * 1 + c
-
-                start, end = curve[segment], curve[segment+1]
-                self.rbf[start] = value_at_start
-                self.rbf[end] = value_at_end
