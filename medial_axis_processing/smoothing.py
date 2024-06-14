@@ -6,8 +6,8 @@ from commons.medial_axis import MedialAxis
 from commons.utils import flatten
 
 
-def __least_squares_rbf_sheet(medial_axis: MedialAxis):
-    # for each face in sheet, run lstsq to find rbf at each vertex
+def __least_squares_rf_sheet(medial_axis: MedialAxis):
+    # for each face in sheet, run lstsq to find rf at each vertex
     outer_sheet = flatten(medial_axis.correspondences[~medial_axis.curve_indices])
 
     for fid in medial_axis.sheet.faces():
@@ -26,9 +26,9 @@ def __least_squares_rbf_sheet(medial_axis: MedialAxis):
             continue
         elif np.sum(mask) < 3:
             avg_radius = np.mean(radius)
-            medial_axis.rbf[inner_v0] = avg_radius
-            medial_axis.rbf[inner_v1] = avg_radius
-            medial_axis.rbf[inner_v2] = avg_radius
+            medial_axis.rf[inner_v0] = avg_radius
+            medial_axis.rf[inner_v1] = avg_radius
+            medial_axis.rf[inner_v2] = avg_radius
         else:
             barycentrics = medial_axis.inner_barycentrics[outer_sheet, 1:][mask]
 
@@ -43,11 +43,12 @@ def __least_squares_rbf_sheet(medial_axis: MedialAxis):
             vertex_values_centered, residuals, rank, s = np.linalg.lstsq(B_reg, values_reg, rcond=None)
             vertex_values = vertex_values_centered + mean_value
 
-            medial_axis.rbf[inner_v0] = vertex_values[0]
-            medial_axis.rbf[inner_v1] = vertex_values[1]
-            medial_axis.rbf[inner_v2] = vertex_values[2]
+            medial_axis.rf[inner_v0] = vertex_values[0]
+            medial_axis.rf[inner_v1] = vertex_values[1]
+            medial_axis.rf[inner_v2] = vertex_values[2]
 
-def __least_squares_rbf_curve(medial_axis: MedialAxis):
+
+def __least_squares_rf_curve(medial_axis: MedialAxis):
     for curve in medial_axis.curves:
         curve = np.array(curve)
         outer_curve = flatten(medial_axis.correspondences[curve])
@@ -57,10 +58,10 @@ def __least_squares_rbf_curve(medial_axis: MedialAxis):
             medial_axis.inner_ts[outer_curve, 0] = curve[0]
             medial_axis.inner_ts[outer_curve, 1] = curve[0]
             medial_axis.inner_ts[outer_curve, 2] = 0
-            medial_axis.rbf[curve[0]] = medial_axis.diff_lens[curve[0]]
+            medial_axis.rf[curve[0]] = medial_axis.diff_lens[curve[0]]
             continue
 
-        # for each segment in curve, run lstsq to find rbf at each curve point
+        # for each segment in curve, run lstsq to find rf at each curve point
         for i, segment in enumerate(curve[:-1]):
             mask = closest_segment == segment
             t_values = medial_axis.inner_ts[outer_curve, 2][mask]
@@ -80,15 +81,15 @@ def __least_squares_rbf_curve(medial_axis: MedialAxis):
             value_at_end = m * 1 + c
 
             start, end = segment, curve[i + 1]
-            medial_axis.rbf[start] = value_at_start
-            medial_axis.rbf[end] = value_at_end
+            medial_axis.rf[start] = value_at_start
+            medial_axis.rf[end]   = value_at_end
 
 
-def smooth_rbf(medial_axis: MedialAxis):
+def smooth_rf(medial_axis: MedialAxis):
     g = medial_axis.graph
     pos = g.positions()
 
-    new_rbf = np.copy(medial_axis.rbf)
+    new_rf = np.copy(medial_axis.rf)
     for node in g.nodes():
         neighbors = g.neighbors(node)
 
@@ -96,19 +97,19 @@ def smooth_rbf(medial_axis: MedialAxis):
         weights = 1 / np.where(distances == 0, np.inf, distances)
         weights /= weights.sum()
 
-        new_rbf[node] = np.dot(weights, medial_axis.rbf[neighbors])
-    medial_axis.rbf[:] = new_rbf
+        new_rf[node] = np.dot(weights, medial_axis.rf[neighbors])
+    medial_axis.rf[:] = new_rf
 
 
 def simple_smooth(medial_axis: MedialAxis):
-    __least_squares_rbf_sheet(medial_axis)
+    __least_squares_rf_curve(medial_axis)
 
-    __least_squares_rbf_curve(medial_axis)
+    __least_squares_rf_sheet(medial_axis)
 
-    __apply_rbf(medial_axis)
+    __apply_rf(medial_axis)
 
 
-def __apply_rbf(medial_axis: MedialAxis):
+def __apply_rf(medial_axis: MedialAxis):
     kd = KDTree(medial_axis.inner_points)
     _, sheet_to_inner = kd.query(medial_axis.sheet.positions())
 
@@ -116,20 +117,20 @@ def __apply_rbf(medial_axis: MedialAxis):
         corr = medial_axis.correspondences[i]
         inner_projs = medial_axis.inner_projections[corr]
 
-        # interpolate rbf
+        # interpolate rf
         if medial_axis.curve_indices[i]:
             closest, next, t = medial_axis.inner_ts[corr, 0].astype(int), medial_axis.inner_ts[corr, 1].astype(int), medial_axis.inner_ts[corr, 2]
-            rbf_a = medial_axis.rbf[closest]
-            rbf_b = medial_axis.rbf[next]
-            rbf = rbf_a + (rbf_b - rbf_a) * t
-            medial_axis.outer_points[corr] = inner_projs + (medial_axis.diffs[corr] * rbf[:, np.newaxis])
+            rf_a = medial_axis.rf[closest]
+            rf_b = medial_axis.rf[next]
+            rf = rf_a + (rf_b - rf_a) * t
+            medial_axis.outer_points[corr] = inner_projs + (medial_axis.diffs[corr] * rf[:, np.newaxis])
         else:
             for outer in corr:
                 closest = medial_axis.inner_barycentrics[outer, 0].astype(int)
                 closest_triangle = medial_axis.sheet.circulate_face(closest, mode='v')
-                rbf_triangle = medial_axis.rbf[sheet_to_inner[closest_triangle]]
+                rf_triangle = medial_axis.rf[sheet_to_inner[closest_triangle]]
                 barycentrics = medial_axis.inner_barycentrics[outer, 1:]
-                rbf = np.multiply(rbf_triangle, barycentrics).sum()
-                medial_axis.outer_points[outer] = medial_axis.inner_projections[outer] + (medial_axis.diffs[outer] * rbf)
+                rf = np.multiply(rf_triangle, barycentrics).sum()
+                medial_axis.outer_points[outer] = medial_axis.inner_projections[outer] + (medial_axis.diffs[outer] * rf)
 
     medial_axis.surface.positions()[:] = medial_axis.outer_points

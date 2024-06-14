@@ -94,6 +94,27 @@ def __updated_inner_projections_sheet(medial_axis: MedialAxis, updated_sheet_pos
     return new_inner_proj
 
 
+def __create_sheet_frames(ma: MedialAxis, updated_sheet: hmesh.Manifold):
+    positions = ma.sheet.positions()
+    updated_sheet_positions = updated_sheet.positions()
+
+    frames_old = np.zeros((len(ma.sheet.vertices()), 3, 3))
+    frames_new = np.zeros((len(ma.sheet.vertices()), 3, 3))
+
+    for vid in ma.sheet.vertices():
+        neighbor = ma.sheet.circulate_vertex(vid)[0]
+        n_old = ma.sheet.vertex_normal(vid)
+        n_new = updated_sheet.vertex_normal(vid)
+
+        basis_old = __get_local_basis(positions[vid], positions[neighbor], n_old)
+        basis_new = __get_local_basis(updated_sheet_positions[vid], updated_sheet_positions[neighbor], n_new)
+
+        frames_old[vid] = basis_old
+        frames_new[vid] = basis_new
+
+    return frames_old, frames_new
+
+
 def inverse_apply_sheet(ma: MedialAxis, updated_sheet_positions: np.ndarray):
     """Applies the transformation of the medial sheet onto corresponding inner and outer points.
        Does this by projecting the points to the local basis of the medial sheet vertex, and then updating the point"""
@@ -161,34 +182,75 @@ def inverse_apply_sheet_v2(ma: MedialAxis, updated_sheet_positions: np.ndarray):
         corresponding_outer = np.where(ma.inner_barycentrics[:, 0].astype(int) == fid)[0]
 
         for outer_idx in corresponding_outer:
-
-            is_at_vertex = np.any(np.abs(ma.inner_barycentrics[outer_idx][1:] - 1) < 0.3)
-            vid = ma.sheet.vertices()[np.argmax(ma.inner_barycentrics[outer_idx][1:])]
-
+            # is_at_vertex = np.any(np.abs(ma.inner_barycentrics[outer_idx][1:] - 1) < 0.3)
+            # vid = ma.sheet.vertices()[np.argmax(ma.inner_barycentrics[outer_idx][1:])]
             # Improvement: also smooth frame for projections at edges
-            if is_at_vertex and not ma.sheet.is_vertex_at_boundary(vid):
-                n_old_v = ma.sheet.vertex_normal(vid)
-                basis_old_v = get_local_basis(positions[vertices[0]], positions[vertices[1]], n_old_v)
+            # if is_at_vertex and not ma.sheet.is_vertex_at_boundary(vid):
+            #     n_old_v = ma.sheet.vertex_normal(vid)
+            #     basis_old_v = get_local_basis(positions[vertices[0]], positions[vertices[1]], n_old_v)
+            #
+            #     n_new_v = updated_sheet.vertex_normal(vid)
+            #     basis_new_v = get_local_basis(updated_sheet_positions[updated_sheet_vertices[0]],
+            #                                 updated_sheet_positions[updated_sheet_vertices[1]], n_new_v)
+            #
+            #     diff, diff_len = ma.diffs[outer_idx], ma.diff_lens[outer_idx]
+            #
+            #     local_coords = __project_array_to_basis(diff, basis_old_v)
+            #     new_diff = __update_array(local_coords, basis_new_v)
+            #     new_diff /= np.linalg.norm(new_diff)
+            #     new_pos = updated_inner_projs[outer_idx] + new_diff * diff_len
+            #     new_outer_pos[outer_idx] = new_pos
+            # else:
+            diff, diff_len = ma.diffs[outer_idx], ma.diff_lens[outer_idx]
 
-                n_new_v = updated_sheet.vertex_normal(vid)
-                basis_new_v = get_local_basis(updated_sheet_positions[updated_sheet_vertices[0]],
-                                            updated_sheet_positions[updated_sheet_vertices[1]], n_new_v)
+            local_coords = __project_array_to_basis(diff, basis_old)
+            new_diff = __update_array(local_coords, basis_new)
+            new_diff /= np.linalg.norm(new_diff)
+            new_pos = updated_inner_projs[outer_idx] + new_diff * diff_len
+            new_outer_pos[outer_idx] = new_pos
 
-                diff, diff_len = ma.diffs[outer_idx], ma.diff_lens[outer_idx]
+    # update medial axis object with new positions
+    ma.sheet.positions()[:] = updated_sheet_positions
+    ma.outer_points = new_outer_pos
 
-                local_coords = __project_array_to_basis(diff, basis_old_v)
-                new_diff = __update_array(local_coords, basis_new_v)
-                new_diff /= np.linalg.norm(new_diff)
-                new_pos = updated_inner_projs[outer_idx] + new_diff * diff_len
-                new_outer_pos[outer_idx] = new_pos
-            else:
-                diff, diff_len = ma.diffs[outer_idx], ma.diff_lens[outer_idx]
+    ma.inner_points[~ma.curve_indices] = updated_sheet_positions[ma.inner_to_sheet_index[~ma.curve_indices]]
+    ma.graph.positions()[~ma.curve_indices] = updated_sheet_positions[ma.inner_to_sheet_index[~ma.curve_indices]]
 
-                local_coords = __project_array_to_basis(diff, basis_old)
-                new_diff = __update_array(local_coords, basis_new)
-                new_diff /= np.linalg.norm(new_diff)
-                new_pos = updated_inner_projs[outer_idx] + new_diff * diff_len
-                new_outer_pos[outer_idx] = new_pos
+    ma.surface.positions()[:] = ma.outer_points
+    ma.inner_projections[:] = updated_inner_projs
+
+
+def inverse_apply_sheet_v3(ma: MedialAxis, updated_sheet_positions: np.ndarray):
+    """Applies the transformation of the medial sheet onto corresponding inner and outer points.
+       Does this by projecting the connections to the surface to a local basis on the sheet vertex,
+         and then updating the connection accordingly"""
+    updated_sheet = hmesh.Manifold(ma.sheet)
+    updated_sheet.positions()[:] = updated_sheet_positions
+    updated_inner_projs = __updated_inner_projections_sheet(ma, updated_sheet_positions)
+
+    new_outer_pos = np.copy(ma.outer_points)
+
+    frames_old, frames_new = __create_sheet_frames(ma, updated_sheet)
+
+    for fid in ma.sheet.faces():
+        vertices = ma.sheet.circulate_face(fid, mode='v')
+        corresponding_outer = np.where(ma.inner_barycentrics[:, 0].astype(int) == fid)[0]
+
+        for outer_idx in corresponding_outer:  # TODO handle boundary
+            # use barycentrics to interpolate frames
+            barycentrics = ma.inner_barycentrics[outer_idx, 1:]
+            barycentrics = barycentrics[:, np.newaxis, np.newaxis]
+
+            basis_old = np.sum(barycentrics * frames_old[vertices], axis=0)
+            basis_new = np.sum(barycentrics * frames_new[vertices], axis=0)
+
+            diff, diff_len = ma.diffs[outer_idx], ma.diff_lens[outer_idx]
+
+            local_coords = __project_array_to_basis(diff, basis_old)
+            new_diff = __update_array(local_coords, basis_new)
+            new_diff /= np.linalg.norm(new_diff)
+            new_pos = updated_inner_projs[outer_idx] + new_diff * diff_len
+            new_outer_pos[outer_idx] = new_pos
 
     # update medial axis object with new positions
     ma.sheet.positions()[:] = updated_sheet_positions
@@ -216,9 +278,8 @@ def inverse_apply_curves(medial_axis: MedialAxis, updated_curve_positions: list[
         # take old and new normals at sheet point connecting to start of curve
         connection = curve[0]
         vid = medial_axis.inner_to_sheet_index[connection]
-        fid = medial_axis.sheet.circulate_vertex(vid, mode='f')[0]
-        old_normal = old_sheet.face_normal(fid)
-        new_normal = medial_axis.sheet.face_normal(fid)
+        old_normal = old_sheet.vertex_normal(vid)
+        new_normal = medial_axis.sheet.vertex_normal(vid)
 
         old_curve_frame = parallel_transport_curve_framing(old_curve_pos, old_normal)
         new_curve_frame = parallel_transport_curve_framing(new_curve_pos, new_normal)
@@ -253,7 +314,7 @@ def map_to_surface(medial_axis: MedialAxis, updated_positions: np.ndarray):
 
     updated_sheet_positions = np.copy(medial_axis.sheet.positions())
     updated_sheet_positions[medial_axis.inner_to_sheet_index[medial_axis.sheet_indices]] = updated_positions[medial_axis.sheet_indices]
-    inverse_apply_sheet(medial_axis, updated_sheet_positions)
+    inverse_apply_sheet_v3(medial_axis, updated_sheet_positions)
 
     # map to curve indices
     updated_curve_positions = [updated_positions[curve] for curve in medial_axis.curves]

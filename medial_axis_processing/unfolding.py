@@ -28,7 +28,7 @@ def __compute_rotation_matrix(src_axes, dst_axes):
     return -1 * R.align_vectors(src_axes, dst_axes)[0].as_matrix()
 
 
-def __least_squares_conformal_map(m: hmesh.Manifold) -> np.ndarray:
+def least_squares_conformal_map(m: hmesh.Manifold) -> np.ndarray:
     """Applies the igl's LSCM to the given mesh"""
     vertices = m.positions()
     faces = np.array([m.circulate_face(fid) for fid in m.faces()])
@@ -60,7 +60,7 @@ def get_unfolded_sheet_positions(ma: MedialAxis, sheet: hmesh.Manifold = None) -
     ma_areas = np.array([sheet.area(fid) for fid in sheet.faces()])
     ma_area = np.sum(ma_areas)
 
-    uv = __least_squares_conformal_map(sheet)
+    uv = least_squares_conformal_map(sheet)
     uv = np.c_[uv, np.zeros(uv.shape[0])]
 
     # scale uv mapping to approximate original MA area

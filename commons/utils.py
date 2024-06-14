@@ -6,11 +6,14 @@ import numpy as np
 from scipy.spatial import KDTree
 
 
-def smooth(m, max_iter=1):
+def smooth(m, max_iter=1, aaa=False):
     pos = m.positions()
     for i in range(0, max_iter):
         new_pos = np.zeros(pos.shape)
         for vertex in m.vertices():
+            if aaa and pos[vertex][2] > 0.1:
+                new_pos[vertex] = pos[vertex]
+                continue
             adjacent_vertices = m.circulate_vertex(vertex, 'v')
             for adj in adjacent_vertices:
                 new_pos[vertex] += pos[adj]
@@ -23,6 +26,26 @@ def smooth(m, max_iter=1):
             m.remove_face(fid)
     m.cleanup()
 
+
+def smooth_aaa(m, max_iter=1):
+    pos = m.positions()
+    for i in range(0, max_iter):
+        new_pos = np.zeros(pos.shape)
+        for vertex in m.vertices():
+            if np.abs(pos[vertex][2]) < 0.1:
+                new_pos[vertex] = pos[vertex]
+                continue
+            adjacent_vertices = m.circulate_vertex(vertex, 'v')
+            for adj in adjacent_vertices:
+                new_pos[vertex] += pos[adj]
+            new_pos[vertex] /= len(adjacent_vertices)
+        pos[:] = new_pos[:]
+
+    # remove zero area faces after smooth
+    for fid in m.faces():
+        if m.area(fid) < 1e-6:
+            m.remove_face(fid)
+    m.cleanup()
 
 def get_local_basis(v0, v1, n):
     b0 = v1 - v0
@@ -135,6 +158,9 @@ def calculate_cumulative_lengths(curve):
 
 
 def project_points_to_curve(points, curve):
+    if len(curve) < 2:
+        return 0, 0, curve[0]
+
     # Prepare curve segments
     A = curve[:-1]  # Starting points of each segment
     B = curve[1:]   # Ending points of each segment

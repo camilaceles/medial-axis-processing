@@ -15,7 +15,7 @@ def load(
 
     vertices = medial_sheet.positions()
 
-    correspondences = build_ball_correspondences(input_mesh, vertices, start=3.5, step=0.1)
+    correspondences = build_ball_correspondences(input_mesh, vertices, start=60, step=1)
 
     g = graph.from_mesh(medial_sheet)
 

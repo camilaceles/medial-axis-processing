@@ -23,7 +23,7 @@ x19_width, x19_height = 850, 1200
 leaf_camera = dict(
     up=dict(x=1, y=1, z=0),
     center=dict(x=0, y=0, z=0),
-    eye=dict(x=-1.0, y=-0.8, z=1.0)
+    eye=dict(x=-1.9, y=-1.8, z=1.1)
 )
 leaf_width, leaf_height = 800, 600
 
@@ -60,7 +60,7 @@ def __mesh_normal_data(m):
     return normals_plot
 
 
-def __wireframe_plot_data(m):
+def __wireframe_plot_data(m, color='#000000', width=1, opacity=1.0):
     m_tri = hmesh.Manifold(m)
     hmesh.triangulate(m_tri)
     pos = m.positions()
@@ -74,10 +74,9 @@ def __wireframe_plot_data(m):
             xyze.append(array([None, None, None]))
     xyze = array(xyze)
     wireframe = go.Scatter3d(x=xyze[:, 0], y=xyze[:, 1], z=xyze[:, 2],
-                             mode='lines',
-                             line=dict(color='rgb(75,75,75)', width=1),
-                             hoverinfo='none',
-                             name="wireframe")
+                          mode='lines',
+                          opacity=opacity,
+                          line=dict(color=color, width=width), hoverinfo='none')
     return wireframe
 
 
@@ -89,6 +88,8 @@ def __graph_plot_data(g, color='#000000', width=1, opacity=1.0):
             if v < w:
                 p0 = pos[v]
                 p1 = pos[w]
+                p0[2] += 0.001
+                p1[2] += 0.001
                 xyze.append(array(p0))
                 xyze.append(array(p1))
                 xyze.append(array([None, None, None]))
@@ -120,8 +121,8 @@ def __mesh_plot_data(m, color, opacity=1.0, smooth=True, diffuse=False):
 
 
 def display_medial_mesh(ma: MedialAxis, save_path=None):
-    surf = __mesh_plot_data(ma.surface, "#dddddd", 0.5, smooth=True)
-    medial_sheet = __mesh_plot_data(ma.sheet, "#4d6aff", 1.0)
+    surf = __mesh_plot_data(ma.surface, "#dddddd", 0.3, smooth=True)
+    medial_sheet = __mesh_plot_data(ma.sheet, "#4d6aff", 1.0, diffuse=True)
     medial_mesh = __graph_plot_data(ma.graph, "#000000", 3)
 
     mesh_data = [surf, medial_sheet, medial_mesh]
@@ -276,7 +277,7 @@ def display_mesh(m, wireframe=True, color='#dddddd', save_path=None, save_html=N
 
     mesh_data = [mesh]
     if wireframe:
-        wireframe = __wireframe_plot_data(m)
+        wireframe = __wireframe_plot_data(m, width=1.1)
         mesh_data += [wireframe]
 
     fig = go.Figure(data=mesh_data)
@@ -539,7 +540,7 @@ def display_inner_projections(ma: MedialAxis, show_n=None, indices=None, save_pa
                                     line=dict(color='black', width=1),
                                     hoverinfo='none',
                                     name="connections")
-    mesh_data = [surf, medial_sheet, medial_mesh, proj, outer, connecting_lines]  # inner]
+    mesh_data = [surf, medial_sheet, medial_mesh, outer, proj, connecting_lines] # inner]
     fig = go.Figure(data=mesh_data)
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
@@ -554,7 +555,7 @@ def display_inner_projections(ma: MedialAxis, show_n=None, indices=None, save_pa
         showlegend=False
     )
     if save_path is not None:
-        fig.write_image(save_path + ".svg")
+        fig.write_image(save_path + ".png")
     fig.show()
 
 def display_mesh_difference(mesh1, mesh2):

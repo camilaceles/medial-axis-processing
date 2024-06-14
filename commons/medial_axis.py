@@ -41,7 +41,7 @@ class MedialAxis:
         self.__map_sheet_correspondences()
 
         # Compute average radial basis function
-        self.rbf = np.zeros(self.inner_points.shape[0])
+        self.rf = np.zeros(self.inner_points.shape[0])
         self.diffs = np.zeros(self.outer_points.shape)
         self.diff_lens = np.zeros(self.outer_points.shape[0])
 
@@ -93,7 +93,7 @@ class MedialAxis:
             avg_len = np.mean(lens)
             norm_diffs = diffs / lens[:, np.newaxis]
 
-            self.rbf[i] = avg_len
+            self.rf[i] = avg_len
             self.diffs[corr] = norm_diffs
 
     def __compute_projections(self):
@@ -123,10 +123,16 @@ class MedialAxis:
 
             # project to curve and store corresponding segment and t values
             closest_segment, t_values, projected = project_points_to_curve(outer_curve_pos, curve_pos)
-            self.inner_projections[outer_curve] = projected
-            self.inner_ts[outer_curve, 0] = curve[closest_segment]
-            self.inner_ts[outer_curve, 1] = curve[closest_segment+1]
-            self.inner_ts[outer_curve, 2] = t_values
+            if len(curve_pos) < 2:
+                self.inner_projections[outer_curve] = projected
+                self.inner_ts[outer_curve, 0] = curve[closest_segment]
+                self.inner_ts[outer_curve, 1] = curve[closest_segment]
+                self.inner_ts[outer_curve, 2] = t_values
+            else:
+                self.inner_projections[outer_curve] = projected
+                self.inner_ts[outer_curve, 0] = curve[closest_segment]
+                self.inner_ts[outer_curve, 1] = curve[closest_segment+1]
+                self.inner_ts[outer_curve, 2] = t_values
 
             diffs = outer_curve_pos - projected
             radii = np.linalg.norm(diffs, axis=1)
